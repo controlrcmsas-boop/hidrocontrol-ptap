@@ -49,3 +49,7 @@ Desktop.ini
 .DS_Store
 *.swp
 *~
+
+# --- Binarios y Herramientas Externas ---
+*.exe
+tools/

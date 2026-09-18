@@ -44,6 +44,39 @@ class PlantState {
         this.step_counter = 0;
     }
 
+    getTunableState() {
+        return {
+            ph_cruda_base: parseFloat(this.ph_cruda_base.toFixed(2)),
+            turbidez_cruda_base: parseFloat(this.turbidez_cruda_base.toFixed(1)),
+            conductividad_cruda_base: parseFloat(this.conductividad_cruda_base.toFixed(0)),
+            presion_b1_base: parseFloat(this.presion_b1_base.toFixed(2)),
+            caudal_b1_base: parseFloat(this.caudal_b1_base.toFixed(1)),
+            bomba_principal_estado: this.bomba_principal_estado,
+            dosificador_sulfato_estado: this.dosificador_sulfato_estado,
+            dosificador_cloro_estado: this.dosificador_cloro_estado,
+            nivel_tanque_agua_cruda: this.nivel_tanque_agua_cruda,
+            modo_remoto_habilitado: this.modo_remoto_habilitado,
+            plc_en_falla: this.plc_en_falla,
+            scenario: this.scenario
+        };
+    }
+
+    setTunableState(params) {
+        if (params.ph_cruda_base !== undefined) this.ph_cruda_base = Math.max(0, Math.min(14, parseFloat(params.ph_cruda_base)));
+        if (params.turbidez_cruda_base !== undefined) this.turbidez_cruda_base = Math.max(0, Math.min(500, parseFloat(params.turbidez_cruda_base)));
+        if (params.conductividad_cruda_base !== undefined) this.conductividad_cruda_base = Math.max(0, Math.min(3000, parseFloat(params.conductividad_cruda_base)));
+        if (params.presion_b1_base !== undefined) this.presion_b1_base = Math.max(0, Math.min(10, parseFloat(params.presion_b1_base)));
+        if (params.caudal_b1_base !== undefined) this.caudal_b1_base = Math.max(0, Math.min(60, parseFloat(params.caudal_b1_base)));
+        if (params.bomba_principal_estado !== undefined) this.bomba_principal_estado = Boolean(params.bomba_principal_estado);
+        if (params.dosificador_sulfato_estado !== undefined) this.dosificador_sulfato_estado = Boolean(params.dosificador_sulfato_estado);
+        if (params.dosificador_cloro_estado !== undefined) this.dosificador_cloro_estado = Boolean(params.dosificador_cloro_estado);
+        if (params.nivel_tanque_agua_cruda !== undefined) this.nivel_tanque_agua_cruda = Boolean(params.nivel_tanque_agua_cruda);
+        if (params.modo_remoto_habilitado !== undefined) this.modo_remoto_habilitado = Boolean(params.modo_remoto_habilitado);
+        if (params.plc_en_falla !== undefined) this.plc_en_falla = Boolean(params.plc_en_falla);
+        if (params.scenario !== undefined) this.scenario = String(params.scenario);
+        return this.getTunableState();
+    }
+
     setScenario(scenarioName) {
         this.scenario = scenarioName.toLowerCase();
         if (this.scenario === "rain") {
@@ -212,11 +245,14 @@ const server = http.createServer((req, res) => {
             };
             setCorsHeaders(res, 200);
             res.end(JSON.stringify(status));
+        } else if (pathname === "/api/simulator/state") {
+            setCorsHeaders(res, 200);
+            res.end(JSON.stringify(plant.getTunableState()));
         } else if (pathname.startsWith("/api/scenario/")) {
             const scenarioName = pathname.replace("/api/scenario/", "").trim();
             plant.setScenario(scenarioName);
             setCorsHeaders(res, 200);
-            res.end(JSON.stringify({ status: "ok", active_scenario: scenarioName }));
+            res.end(JSON.stringify({ status: "ok", active_scenario: scenarioName, state: plant.getTunableState() }));
         } else {
             setCorsHeaders(res, 404);
             res.end(JSON.stringify({ error: "Endpoint no encontrado en simulador" }));
@@ -225,7 +261,17 @@ const server = http.createServer((req, res) => {
         let body = "";
         req.on("data", chunk => { body += chunk; });
         req.on("end", () => {
-            if (pathname === "/api/control/command") {
+            if (pathname === "/api/simulator/state") {
+                try {
+                    const payload = body ? JSON.parse(body) : {};
+                    const updated = plant.setTunableState(payload);
+                    setCorsHeaders(res, 200);
+                    res.end(JSON.stringify({ success: true, state: updated }));
+                } catch (err) {
+                    setCorsHeaders(res, 400);
+                    res.end(JSON.stringify({ error: "JSON inválido: " + err.message }));
+                }
+            } else if (pathname === "/api/control/command") {
                 try {
                     const payload = body ? JSON.parse(body) : {};
                     const target = payload.target || "";

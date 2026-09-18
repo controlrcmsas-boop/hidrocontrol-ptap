@@ -115,5 +115,45 @@ public sealed class NodeRedApiClient(HttpClient http)
         var response = await http.PostAsJsonAsync("api/notification-whatsapp/test", request, cancellationToken);
         return response.IsSuccessStatusCode;
     }
+
+    public async Task<SimulatorStateDto?> GetSimulatorStateAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await http.GetFromJsonAsync<SimulatorStateDto>("api/simulator/state", cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<SimulatorStateDto?> UpdateSimulatorStateAsync(SimulatorStateDto state, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await http.PostAsJsonAsync("api/simulator/state", state, cancellationToken);
+            if (!response.IsSuccessStatusCode) return null;
+            var res = await response.Content.ReadFromJsonAsync<SimulatorUpdateResponse>(cancellationToken);
+            return res?.State;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> SetSimulatorScenarioAsync(string scenario, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await http.GetAsync($"api/scenario/{scenario}", cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 

@@ -1,0 +1,261 @@
+@page "/"
+@rendermode InteractiveServer
+@using PTAPControl.Models
+@using PTAPControl.Services
+@implements IAsyncDisposable
+@inject NodeRedApiClient Api
+
+<PageTitle>PTAP Control</PageTitle>
+
+<section class="scada-page">
+    <header class="scada-header">
+        <div>
+            <p class="eyebrow">HIDROCONTROL PTAP V2.2</p>
+            <h1>PTAP Control</h1>
+        </div>
+        <div class="system-strip">
+            <span class="status-dot @(Telemetry?.PlcConnected == true ? "ok" : "bad")"></span>
+            <span>@(Telemetry?.PlcConnected == true ? "PLC conectado" : "PLC sin datos")</span>
+            <span>Watchdog: @FormatNumber("watchdog_plc", "0")</span>
+            <span>@LastRefreshText</span>
+        </div>
+    </header>
+
+    <div class="home-alarm-slot">
+        <GlobalAlarmBanner />
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert-line">@ErrorMessage</div>
+    }
+
+    <div class="dashboard-grid">
+        <div class="plant-stage-scroll-container">
+            <section class="plant-stage plant-stage-v2" aria-label="Pantalla SCADA PTAP">
+                <img src="images/hidrocontrol-scada.png" alt="HIDROCONTROL PTAP" />
+
+                <!-- Rótulos dinámicos de equipos (Naranja industrial) -->
+                <div class="equipment-tag-label tag-ea101">
+                    <span class="tag-code">EA-101</span>
+                    <span class="tag-name">TORRE DE AIREACION</span>
+                </div>
+
+                <div class="equipment-tag-label tag-fh201">
+                    <span class="tag-code">FH-201</span>
+                    <span class="tag-name">FLOCULADOR HIDRAULICO</span>
+                </div>
+
+                <div class="equipment-tag-label tag-sc301">
+                    <span class="tag-code">SC-301</span>
+                    <span class="tag-name">SEDIMENTADOR LAMELAR</span>
+                </div>
+
+                <div class="equipment-tag-label tag-fc401">
+                    <span class="tag-code">FC-401</span>
+                    <span class="tag-name">FILTRO CARBON ACTIVADO</span>
+                </div>
+
+                <div class="equipment-tag-label tag-tk101">
+                    <span class="tag-code">TK-101</span>
+                    <span class="tag-name">TANQUE AGUA CRUDA</span>
+                </div>
+
+                <div class="equipment-tag-label tag-tk501">
+                    <span class="tag-code">TK-501</span>
+                    <span class="tag-name">TANQUE AGUA TRATADA</span>
+                </div>
+
+                <!-- Cuadros de telemetría de proceso -->
+                <div class="process-card raw-quality-card">
+                    <span>Agua cruda</span>
+                    <div><small>pH</small><strong>@FormatNumber("ph_agua_cruda", "0.00")</strong></div>
+                    <div><small>Turbidez</small><strong>@FormatNumber("turbidez_agua_cruda", "0.0") NTU</strong></div>
+                    <div><small>Cloro / conduct.</small><strong>@FormatNumber("conductividad_agua_cruda", "0") uS/cm</strong></div>
+                </div>
+
+                <div class="process-card pump-intake-card">
+                    <span>Entrada bomba B1</span>
+                    <div><small>Presion</small><strong>@FormatNumber("presion_bomba_principal", "0.0") bar</strong></div>
+                    <div><small>Caudal</small><strong>@FormatNumber("caudal_bomba_principal", "0.0") L/min</strong></div>
+                </div>
+
+                <div class="process-card treated-quality-card">
+                    <span>Agua tratada</span>
+                    <div><small>pH</small><strong>@FormatNumber("ph_agua_tratada", "0.00")</strong></div>
+                    <div><small>Turbidez</small><strong>@FormatNumber("turbidez_agua_tratada", "0.0") NTU</strong></div>
+                    <div><small>Cloro / conduct.</small><strong>@FormatNumber("conductividad_agua_tratada", "0") uS/cm</strong></div>
+                </div>
+            </section>
+        </div>
+
+        <aside class="side-panel">
+            <section class="panel-section">
+                <h2>Equipos</h2>
+
+                <div class="equipment-row">
+                    <div class="equipment-id">B1</div>
+                    <div class="equipment-main">
+                        <strong>Bomba principal</strong>
+                        <span class="equipment-state @StateClass("bomba_principal_estado")">@StateText("bomba_principal_estado")</span>
+                    </div>
+                    <div class="equipment-actions">
+                        <button type="button" class="cmd start @CommandButtonClass("bomba_principal_estado", true)" @onclick='() => SendCommandAsync("bomba_principal", "start")'>ON</button>
+                        <button type="button" class="cmd stop @CommandButtonClass("bomba_principal_estado", false)" @onclick='() => SendCommandAsync("bomba_principal", "stop")'>OFF</button>
+                    </div>
+                </div>
+
+                <div class="equipment-row">
+                    <div class="equipment-id">B2</div>
+                    <div class="equipment-main">
+                        <strong>Dosificador sulfato</strong>
+                        <span class="equipment-state @StateClass("dosificador_sulfato_estado")">@StateText("dosificador_sulfato_estado")</span>
+                    </div>
+                    <div class="equipment-actions">
+                        <button type="button" class="cmd start @CommandButtonClass("dosificador_sulfato_estado", true)" @onclick='() => SendCommandAsync("dosificador_sulfato", "start")'>ON</button>
+                        <button type="button" class="cmd stop @CommandButtonClass("dosificador_sulfato_estado", false)" @onclick='() => SendCommandAsync("dosificador_sulfato", "stop")'>OFF</button>
+                    </div>
+                </div>
+
+                <div class="equipment-row">
+                    <div class="equipment-id">B3</div>
+                    <div class="equipment-main">
+                        <strong>Dosificador cloro</strong>
+                        <span class="equipment-state @StateClass("dosificador_cloro_estado")">@StateText("dosificador_cloro_estado")</span>
+                    </div>
+                    <div class="equipment-actions">
+                        <button type="button" class="cmd start @CommandButtonClass("dosificador_cloro_estado", true)" @onclick='() => SendCommandAsync("dosificador_cloro", "start")'>ON</button>
+                        <button type="button" class="cmd stop @CommandButtonClass("dosificador_cloro_estado", false)" @onclick='() => SendCommandAsync("dosificador_cloro", "stop")'>OFF</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel-section compact-metrics">
+                <h2>Calidad</h2>
+                <div class="metric-row"><span>pH cruda</span><strong>@FormatNumber("ph_agua_cruda", "0.00") <small>pH</small></strong></div>
+                <div class="metric-row"><span>Turbidez cruda</span><strong>@FormatNumber("turbidez_agua_cruda", "0.0") <small>NTU</small></strong></div>
+                <div class="metric-row"><span>Conductividad cruda</span><strong>@FormatNumber("conductividad_agua_cruda", "0") <small>uS/cm</small></strong></div>
+                <div class="metric-row"><span>pH tratada</span><strong>@FormatNumber("ph_agua_tratada", "0.00") <small>pH</small></strong></div>
+                <div class="metric-row"><span>Turbidez tratada</span><strong>@FormatNumber("turbidez_agua_tratada", "0.0") <small>NTU</small></strong></div>
+                <div class="metric-row"><span>Conductividad tratada</span><strong>@FormatNumber("conductividad_agua_tratada", "0") <small>uS/cm</small></strong></div>
+            </section>
+
+            <section class="panel-section status-box">
+                <h2>Seguridad</h2>
+                <div>
+                    <span>Modo remoto</span>
+                    @if (Telemetry?.PlcConnected == true && Telemetry?.GetBool("modo_remoto_habilitado") == true)
+                    {
+                        <strong class="status-val-ok" style="color: #48d597 !important; font-weight: 800;">SI</strong>
+                    }
+                    else
+                    {
+                        <strong class="status-val-alarm" style="color: #ff6b6b !important; font-weight: 800;">NO</strong>
+                    }
+                </div>
+                <div>
+                    <span>Falla PLC</span>
+                    @if (Telemetry?.PlcConnected != true || Telemetry?.GetBool("plc_en_falla") == true)
+                    {
+                        <strong class="status-val-alarm" style="color: #ff6b6b !important; font-weight: 800;">SI</strong>
+                    }
+                    else
+                    {
+                        <strong class="status-val-ok" style="color: #48d597 !important; font-weight: 800;">NO</strong>
+                    }
+                </div>
+                <div>
+                    <span>Ultimo comando</span>
+                    <strong>@LastCommandText</strong>
+                </div>
+            </section>
+        </aside>
+    </div>
+</section>
+
+@code {
+    private TelemetryResponse? Telemetry;
+    private string? ErrorMessage;
+    private string LastCommandText = "Sin comando";
+    private PeriodicTimer? timer;
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cts = new CancellationTokenSource();
+        await RefreshAsync();
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        _ = RefreshLoopAsync(cts.Token);
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        if (timer is null) return;
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            Telemetry = await Api.GetCurrentTelemetryAsync(cts?.Token ?? CancellationToken.None);
+            ErrorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"No se pudo leer Node-RED: {ex.Message}";
+        }
+    }
+
+    private async Task SendCommandAsync(string target, string command)
+    {
+        try
+        {
+            var response = await Api.SendCommandAsync(target, command, cts?.Token ?? CancellationToken.None);
+            LastCommandText = response?.Accepted == true
+                ? $"{target} {command} aceptado"
+                : response?.Error ?? "Comando rechazado";
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            LastCommandText = "Error de comando";
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    private string FormatNumber(string key, string format)
+    {
+        var value = Telemetry?.GetNumber(key);
+        return value.HasValue ? value.Value.ToString(format) : "--";
+    }
+
+    private string BoolText(string key) => Telemetry?.GetBool(key) == true ? "SI" : "NO";
+    private string StateText(string key) => Telemetry?.GetBool(key) == true ? "Encendido" : "Apagado";
+    private string StateClass(string key) => Telemetry?.GetBool(key) == true ? "running" : "stopped";
+    private string CommandButtonClass(string key, bool activeWhenOn) => Telemetry?.GetBool(key) == activeWhenOn ? "lit" : string.Empty;
+    private string LastRefreshText => Telemetry is null ? "Sin lectura" : Telemetry.Timestamp.ToLocalTime().ToString("HH:mm:ss");
+
+    public async ValueTask DisposeAsync()
+    {
+        if (cts is not null)
+        {
+            await cts.CancelAsync();
+            cts.Dispose();
+        }
+
+        timer?.Dispose();
+    }
+}
+

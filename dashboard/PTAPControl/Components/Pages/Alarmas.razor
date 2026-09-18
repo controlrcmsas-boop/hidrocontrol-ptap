@@ -1,0 +1,115 @@
+﻿@page "/alarmas"
+@rendermode InteractiveServer
+@using PTAPControl.Models
+@using PTAPControl.Services
+@inject NodeRedApiClient Api
+
+<PageTitle>Alarmas</PageTitle>
+
+<section class="alarm-page">
+    <header class="scada-header">
+        <div>
+            <p class="eyebrow">HIDROCONTROL PTAP</p>
+            <h1>Alarmas</h1>
+        </div>
+        <button class="refresh-button" @onclick="LoadAsync">Actualizar</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert-line">@ErrorMessage</div>
+    }
+
+    <section class="panel-section alarm-summary">
+        <h2>Alarmas activas</h2>
+        <strong class="alarm-count">@ActiveAlarms.Count</strong>
+    </section>
+
+    <table class="history-table alarm-table">
+        <thead>
+            <tr>
+                <th>Inicio</th>
+                <th>Variable</th>
+                <th>Mensaje</th>
+                <th>Valor</th>
+                <th>Severidad</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (ActiveAlarms.Count == 0)
+            {
+                <tr>
+                    <td colspan="5">No hay alarmas activas.</td>
+                </tr>
+            }
+            @foreach (var alarm in ActiveAlarms)
+            {
+                <tr>
+                    <td>@alarm.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td>@DisplayName(alarm)</td>
+                    <td>@alarm.Message</td>
+                    <td>@DisplayValue(alarm)</td>
+                    <td><span class="severity @alarm.Severity">@alarm.Severity</span></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <section class="history-section">
+        <h2>Historico reciente</h2>
+        <table class="history-table alarm-table">
+            <thead>
+                <tr>
+                    <th>Inicio</th>
+                    <th>Fin</th>
+                    <th>Variable</th>
+                    <th>Mensaje</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var alarm in History)
+                {
+                    <tr>
+                        <td>@alarm.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@(alarm.ClearedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                        <td>@DisplayName(alarm)</td>
+                        <td>@alarm.Message</td>
+                        <td>@alarm.State</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+</section>
+
+@code {
+    private List<AlarmEvent> ActiveAlarms = [];
+    private List<AlarmEvent> History = [];
+    private string? ErrorMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            ActiveAlarms = await Api.GetActiveAlarmsAsync();
+            History = await Api.GetAlarmHistoryAsync(100);
+            ErrorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"No se pudieron cargar alarmas: {ex.Message}";
+        }
+    }
+
+    private static string DisplayName(AlarmEvent alarm) => string.IsNullOrWhiteSpace(alarm.NombreVisible) ? alarm.TagId : alarm.NombreVisible;
+
+    private static string DisplayValue(AlarmEvent alarm)
+    {
+        if (alarm.ValueNumeric is not null) return alarm.ValueNumeric.Value.ToString("0.###");
+        if (alarm.ValueBool is not null) return alarm.ValueBool.Value ? "TRUE" : "FALSE";
+        return "-";
+    }
+}

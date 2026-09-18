@@ -1,0 +1,450 @@
+@page "/configuracion"
+@rendermode InteractiveServer
+@using PTAPControl.Models
+@using PTAPControl.Services
+@inject NodeRedApiClient Api
+
+@inject GeminiAiService Ai
+@inject PtapKnowledgeService Knowledge
+
+<PageTitle>Configuracion</PageTitle>
+
+<section class="config-page">
+    <header class="scada-header">
+        <div>
+            <p class="eyebrow">PERFIL TECNICO &bull; V2.2</p>
+            <h1>Configuración del Sistema</h1>
+        </div>
+        <button class="refresh-button" @onclick="LoadAsync">Actualizar</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(StatusMessage))
+    {
+        <div class="alert-line">@StatusMessage</div>
+    }
+
+    <!-- Panel de Gestión y Capacitación del Agente Local -->
+    <div class="panel-section" style="margin-bottom: 20px; border: 1px solid rgba(168, 85, 247, 0.4); background: rgba(28, 18, 48, 0.5);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div>
+                <h2 style="margin: 0; color: #f3e8ff; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+                    <span>🧠</span>
+                    <span>Supervisor y Agente IA Local (Offline en PC)</span>
+                </h2>
+                <p style="margin: 4px 0 0 0; color: var(--muted); font-size: 0.86rem;">
+                    Ejecución 100% on-premise con Ollama, base de conocimiento de ingeniería y capacitación de reglas operativas.
+                </p>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <span class="ai-status-badge @(OllamaStatus.IsOnline ? "optimo" : "atencion")">
+                    @(OllamaStatus.IsOnline ? "Ollama Conectado" : "Ollama Offline / Standby")
+                </span>
+                <button type="button" class="refresh-button" style="padding: 4px 10px; font-size: 0.8rem;" @onclick="CheckOllamaAsync">
+                    🔄 Probar Servidor Local
+                </button>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; background: rgba(11, 21, 27, 0.7); padding: 14px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 16px;">
+            <div>
+                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Proveedor Activo</span>
+                <div style="color: #c084fc; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">
+                    @(Ai.IsLocalProvider ? "💻 Local (Ollama Offline)" : "☁️ Nube (Google Gemini)")
+                </div>
+                <small style="color: var(--muted);">Endpoint: @Ai.LocalEndpoint</small>
+            </div>
+            <div>
+                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Modelo en Memoria</span>
+                <div style="color: #e5e7eb; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">@Ai.LocalModel</div>
+                <small style="color: #48d597;">@OllamaStatus.Details</small>
+            </div>
+            <div>
+                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Límites Coagulante / Cloro</span>
+                <div style="color: #e5e7eb; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">
+                    Sulfato: @Ai.SulfateMinDose - @Ai.SulfateMaxDose mg/L
+                </div>
+                <small style="color: #48d597;">Cloro: @Ai.ChlorineMinDose - @Ai.ChlorineMaxDose mg/L</small>
+            </div>
+            <div>
+                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Equipos en Base de Datos</span>
+                <div style="color: #6ee7b7; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">
+                    @Knowledge.Data.EquipmentSpecs.Count Equipos &bull; @Knowledge.Data.StandardOperatingProcedures.Count SOPs
+                </div>
+                <small style="color: var(--muted);">TK-101, EA-101, FH-201, SC-301, FC-401, TK-501</small>
+            </div>
+        </div>
+
+        <!-- Formulario para Capacitar al Agente con Nuevas Reglas -->
+        <div style="background: rgba(17, 31, 39, 0.9); padding: 14px; border-radius: 6px; border-left: 3px solid #a855f7;">
+            <h3 style="margin: 0 0 8px 0; color: #f3e8ff; font-size: 0.96rem; display: flex; align-items: center; gap: 6px;">
+                <span>🎓</span>
+                <span>Capacitar al Agente (Enseñar Nueva Regla Operativa de Planta)</span>
+            </h3>
+            <p style="margin: 0 0 10px 0; font-size: 0.84rem; color: var(--muted);">
+                Escribe una condición de proceso y la acción que el supervisor virtual debe aplicar cuando esa condición ocurra:
+            </p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end;">
+                <label style="display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: #cbd5e1;">
+                    Condición (Ej: "Turbidez de agua cruda > 80 NTU")
+                    <input type="text" style="background: #0b151b; border: 1px solid var(--line); border-radius: 4px; padding: 7px 10px; color: #fff;" 
+                           @bind="NewRuleCondition" placeholder="Ej: pH de agua cruda < 6.8 con caudal > 15 L/min" />
+                </label>
+                <label style="display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: #cbd5e1;">
+                    Acción Técnica Recomendada
+                    <input type="text" style="background: #0b151b; border: 1px solid var(--line); border-radius: 4px; padding: 7px 10px; color: #fff;" 
+                           @bind="NewRuleAction" placeholder="Ej: Dosificar alcalinizante o subir coagulante a 42 mg/L" />
+                </label>
+                <button type="button" class="refresh-button" style="padding: 7px 14px; font-weight: 700;" @onclick="AddRuleAsync">
+                    + Enseñar Regla
+                </button>
+            </div>
+
+            @if (Knowledge.Data.LearnedOperatorRules.Count > 0)
+            {
+                <div style="margin-top: 14px;">
+                    <strong style="font-size: 0.84rem; color: var(--cyan);">Reglas Aprendidas por el Agente:</strong>
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+                        @foreach (var rule in Knowledge.Data.LearnedOperatorRules)
+                        {
+                            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(7, 11, 14, 0.7); padding: 6px 12px; border-radius: 4px; font-size: 0.82rem;">
+                                <div>
+                                    <strong style="color: #c084fc;">[@rule.Id] SI</strong> @rule.Condition &rarr; <span style="color: #48d597;">@rule.Action</span>
+                                </div>
+                                <button type="button" class="btn-remove-pill" title="Eliminar regla" @onclick="() => RemoveRuleAsync(rule.Id)">×</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="notification-channels-grid">
+        <section class="panel-section email-config">
+            <div class="channel-header">
+                <h2>Correos para alarmas criticas</h2>
+                <p>Los destinatarios activos recibiran aviso por email cuando se registre una alarma con severidad critical.</p>
+            </div>
+
+            <div class="email-form">
+                <label>
+                    Nombre
+                    <input type="text" @bind="NewEmailName" placeholder="Operador / responsable" />
+                </label>
+                <label>
+                    Correo
+                    <input type="email" @bind="NewEmailAddress" placeholder="correo@empresa.com" />
+                </label>
+                <button class="refresh-button" @onclick="AddEmailAsync">Agregar</button>
+            </div>
+
+            <div class="email-list">
+                @if (NotificationEmails.Count == 0)
+                {
+                    <span class="empty-hint">No hay correos registrados.</span>
+                }
+                @foreach (var email in NotificationEmails)
+                {
+                    <div class="email-pill">
+                        <strong>@email.Email</strong>
+                        <span>@(string.IsNullOrWhiteSpace(email.Name) ? "Sin nombre" : email.Name)</span>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="panel-section whatsapp-config">
+            <div class="channel-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
+                <div>
+                    <h2>WhatsApp para alarmas criticas</h2>
+                    <p>Alertas automaticas a celulares registrados directamente desde la linea oficial de la planta.</p>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" class="refresh-button" style="padding: 6px 12px; font-size: 0.85rem;" @onclick="SendTestWhatsAppAsync">
+                        🧪 Enviar prueba
+                    </button>
+                    <a href="http://localhost:5089/qr" target="_blank" class="refresh-button" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.85rem; background: rgba(37, 211, 102, 0.18); border-color: rgba(37, 211, 102, 0.4); color: #25d366;">
+                        📲 Vincular QR Emisor
+                    </a>
+                </div>
+            </div>
+
+            <div class="email-form whatsapp-form" style="grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.4fr) auto;">
+                <label>
+                    Nombre operador / responsable
+                    <input type="text" @bind="NewWaName" placeholder="Ingeniero / Operador" />
+                </label>
+                <label>
+                    Numero celular (con codigo pais)
+                    <input type="tel" @bind="NewWaPhone" placeholder="+573001234567" />
+                </label>
+                <button class="refresh-button" @onclick="AddWhatsAppAsync">Agregar</button>
+            </div>
+
+            <div class="email-list whatsapp-list">
+                @if (NotificationWhatsApps.Count == 0)
+                {
+                    <span class="empty-hint">No hay numeros de WhatsApp registrados.</span>
+                }
+                @foreach (var wa in NotificationWhatsApps)
+                {
+                    <div class="email-pill whatsapp-pill">
+                        <div>
+                            <strong>@wa.PhoneNumber</strong>
+                            <span>@(string.IsNullOrWhiteSpace(wa.Name) ? "Sin nombre" : wa.Name)</span>
+                        </div>
+                        <button type="button" class="btn-remove-pill" title="Eliminar contacto" @onclick="() => DeleteWhatsAppAsync(wa.Id)">×</button>
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+
+    <div class="panel-section" style="margin-bottom: 18px; border-left: 3px solid var(--cyan); background: rgba(17, 31, 39, 0.9);">
+        <h3 style="margin: 0 0 6px 0; color: var(--cyan); font-size: 0.95rem; font-weight: 700;">ℹ️ Guía de Configuración de Alarmas</h3>
+        <p style="margin: 0 0 6px 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4;">
+            • <strong>Casilla Activa:</strong> Si está marcada (✅), el sistema supervisa la variable y activará la alarma cuando se salga de los límites. Si está desmarcada (❌), la alarma se <em>silencia/deshabilita</em> (útil en mantenimientos o calibraciones).
+        </p>
+        <p style="margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4;">
+            • <strong>Niveles de Severidad:</strong> 
+            <span style="color: #93a9af;"><strong>low:</strong> Registro informativo</span> | 
+            <span style="color: var(--yellow);"><strong>medium:</strong> Advertencia operativa en pantalla</span> | 
+            <span style="color: #ff9999;"><strong>high:</strong> Alarma prioritaria roja</span> | 
+            <span style="color: #ff4d4d; font-weight: bold;"><strong>critical:</strong> Parpadeo de emergencia + Envío de WhatsApp y Correo</span>.
+        </p>
+    </div>
+
+    <div class="config-list">
+        @foreach (var limit in Limits)
+        {
+            <section class="config-row">
+                <div class="config-main">
+                    <strong>@DisplayName(limit)</strong>
+                    <span>@limit.Message</span>
+                    <small>@limit.TechnicalNote</small>
+                </div>
+
+                <label class="toggle-field">
+                    <span>Activa</span>
+                    <input type="checkbox" @bind="limit.Enabled" />
+                </label>
+
+                <label>
+                    Severidad
+                    <select @bind="limit.Severity">
+                        <option value="low">low</option>
+                        <option value="medium">medium</option>
+                        <option value="high">high</option>
+                        <option value="critical">critical</option>
+                    </select>
+                </label>
+
+                @if (limit.AlarmType == "bool_equals")
+                {
+                    <label class="toggle-field bool-limit-field">
+                        <span>Alarma si es TRUE</span>
+                        <input type="checkbox" @bind="limit.BoolAlarmValueEdit" />
+                    </label>
+                }
+                else
+                {
+                    <label>
+                        Limite bajo
+                        <input type="number" step="0.01" @bind="limit.LimitLow" />
+                    </label>
+                    <label>
+                        Limite alto
+                        <input type="number" step="0.01" @bind="limit.LimitHigh" />
+                    </label>
+                }
+
+                <label class="message-field">
+                    Mensaje
+                    <input type="text" @bind="limit.Message" />
+                </label>
+
+                <button class="refresh-button btn-save-limit @(RecentlySavedIds.Contains(limit.Id) ? "saved" : "")" @onclick="() => SaveAsync(limit)">
+                    @(RecentlySavedIds.Contains(limit.Id) ? "✓ Guardado" : "Guardar")
+                </button>
+            </section>
+        }
+    </div>
+</section>
+
+@code {
+    private List<AlarmLimit> Limits = [];
+    private List<NotificationEmail> NotificationEmails = [];
+    private List<NotificationWhatsApp> NotificationWhatsApps = [];
+    private readonly HashSet<long> RecentlySavedIds = [];
+    private string? StatusMessage;
+    private string? NewEmailName;
+    private string? NewEmailAddress;
+    private string? NewWaName;
+    private string? NewWaPhone;
+    private string? NewRuleCondition;
+    private string? NewRuleAction;
+    private (bool IsOnline, string Model, string Details) OllamaStatus = (false, "llama3.2:3b", "No verificado");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        await CheckOllamaAsync();
+    }
+
+    private async Task CheckOllamaAsync()
+    {
+        OllamaStatus = await Ai.CheckLocalOllamaStatusAsync();
+        StateHasChanged();
+    }
+
+    private async Task AddRuleAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewRuleCondition) || string.IsNullOrWhiteSpace(NewRuleAction))
+        {
+            StatusMessage = "Debe ingresar una condición y una acción recomendada para capacitar al agente.";
+            return;
+        }
+
+        await Knowledge.AddRuleAsync(NewRuleCondition, NewRuleAction);
+        StatusMessage = $"✓ Nueva regla aprendida por el agente: SI {NewRuleCondition} -> {NewRuleAction}";
+        NewRuleCondition = null;
+        NewRuleAction = null;
+    }
+
+    private async Task RemoveRuleAsync(string id)
+    {
+        await Knowledge.RemoveRuleAsync(id);
+        StatusMessage = $"Regla {id} eliminada de la base de conocimiento.";
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            Limits = await Api.GetAlarmLimitsAsync();
+            NotificationEmails = await Api.GetNotificationEmailsAsync();
+            NotificationWhatsApps = await Api.GetNotificationWhatsAppAsync();
+            StatusMessage = null;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"No se pudo cargar configuracion: {ex.Message}";
+        }
+    }
+
+    private async Task AddEmailAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewEmailAddress) || !NewEmailAddress.Contains('@'))
+        {
+            StatusMessage = "Ingrese un correo valido.";
+            return;
+        }
+
+        try
+        {
+            var created = await Api.AddNotificationEmailAsync(NewEmailAddress.Trim(), NewEmailName?.Trim());
+            if (created is not null)
+            {
+                NotificationEmails.Insert(0, created);
+            }
+
+            StatusMessage = $"Correo registrado: {NewEmailAddress.Trim()}";
+            NewEmailName = null;
+            NewEmailAddress = null;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"No se pudo registrar el correo: {ex.Message}";
+        }
+    }
+
+    private async Task AddWhatsAppAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewWaPhone) || NewWaPhone.Trim().Length < 7)
+        {
+            StatusMessage = "Ingrese un numero telefonico valido con codigo de pais (ej: +573001234567).";
+            return;
+        }
+
+        try
+        {
+            var created = await Api.AddNotificationWhatsAppAsync(NewWaPhone.Trim(), NewWaName?.Trim(), null);
+            if (created is not null)
+            {
+                NotificationWhatsApps.Insert(0, created);
+            }
+
+            StatusMessage = $"Contacto WhatsApp registrado: {NewWaPhone.Trim()}";
+            NewWaName = null;
+            NewWaPhone = null;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"No se pudo registrar el contacto WhatsApp: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteWhatsAppAsync(long id)
+    {
+        if (id <= 0) return;
+        try
+        {
+            var success = await Api.DeleteNotificationWhatsAppAsync(id);
+            if (success)
+            {
+                NotificationWhatsApps.RemoveAll(x => x.Id == id);
+                StatusMessage = "Contacto de WhatsApp deshabilitado.";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error al eliminar contacto WhatsApp: {ex.Message}";
+        }
+    }
+
+    private async Task SendTestWhatsAppAsync()
+    {
+        try
+        {
+            StatusMessage = "Enviando mensaje de prueba a los números registrados...";
+            var success = await Api.SendTestWhatsAppAsync();
+            StatusMessage = success
+                ? "Mensaje de prueba de WhatsApp despachado correctamente."
+                : "No se pudo despachar la prueba. Asegúrese de que la pasarela de WhatsApp esté iniciada y vinculada (http://localhost:5089/qr).";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error enviando prueba: {ex.Message}";
+        }
+    }
+
+    private async Task SaveAsync(AlarmLimit limit)
+    {
+        try
+        {
+            var updated = await Api.UpdateAlarmLimitAsync(limit);
+            if (updated is not null)
+            {
+                var index = Limits.FindIndex(x => x.Id == updated.Id);
+                if (index >= 0) Limits[index] = updated;
+            }
+
+            RecentlySavedIds.Add(limit.Id);
+            StatusMessage = $"✓ Límite guardado correctamente: {DisplayName(limit)}";
+            StateHasChanged();
+
+            _ = Task.Delay(2500).ContinueWith(_ =>
+            {
+                RecentlySavedIds.Remove(limit.Id);
+                InvokeAsync(StateHasChanged);
+            });
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"No se pudo guardar el limite: {ex.Message}";
+        }
+    }
+
+    private static string DisplayName(AlarmLimit limit) => string.IsNullOrWhiteSpace(limit.NombreVisible) ? limit.TagId : limit.NombreVisible;
+}

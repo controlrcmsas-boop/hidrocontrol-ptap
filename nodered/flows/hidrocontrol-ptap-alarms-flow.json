@@ -1,0 +1,534 @@
+﻿[
+    {
+        "id":  "hidro_alarms_tab_001",
+        "type":  "tab",
+        "label":  "HIDROCONTROL PTAP - ALARMS",
+        "disabled":  false,
+        "info":  "Evalua limites configurables de alarmas y expone endpoints para el dashboard."
+    },
+    {
+        "id":  "postgres_config_hidro_alarm_001",
+        "type":  "postgreSQLConfig",
+        "name":  "PostgreSQL HIDROCONTROL PTAP ALARMS",
+        "host":  "127.0.0.1",
+        "hostFieldType":  "str",
+        "port":  "5432",
+        "portFieldType":  "num",
+        "database":  "hidrocontrol_ptap",
+        "databaseFieldType":  "str",
+        "ssl":  "false",
+        "sslFieldType":  "bool",
+        "applicationName":  "node-red-hidrocontrol-ptap-alarms",
+        "applicationNameType":  "str",
+        "max":  "10",
+        "maxFieldType":  "num",
+        "idle":  "10000",
+        "idleFieldType":  "num",
+        "connectionTimeout":  "10000",
+        "connectionTimeoutFieldType":  "num",
+        "user":  "hidrocontrol_app",
+        "userFieldType":  "str",
+        "password":  "hidrocontrol2026",
+        "passwordFieldType":  "str"
+    },
+    {
+        "id":  "inject_alarm_eval_001",
+        "type":  "inject",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Cada 5 s evaluar alarmas",
+        "props":  [
+                      {
+                          "p":  "payload"
+                      }
+                  ],
+        "repeat":  "5",
+        "crontab":  "",
+        "once":  true,
+        "onceDelay":  2,
+        "topic":  "",
+        "payload":  "",
+        "payloadType":  "date",
+        "x":  170,
+        "y":  100,
+        "wires":  [
+                      "pg_alarm_limits_eval_001"
+                  ]
+    },
+    {
+        "id":  "pg_alarm_limits_eval_001",
+        "type":  "postgresql",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Leer limites habilitados",
+        "query":  "SELECT id, tag_id, alarm_type, enabled, severity, limit_low, limit_high, bool_alarm_value, unit, message FROM alarm_limits WHERE enabled = true ORDER BY id;",
+        "postgreSQLConfig":  "postgres_config_hidro_alarm_001",
+        "split":  false,
+        "rowsPerMsg":  "1",
+        "outputs":  1,
+        "x":  430,
+        "y":  100,
+        "wires":  [
+                      "fn_alarm_eval_001"
+                  ]
+    },
+    {
+        "id":  "fn_alarm_eval_001",
+        "type":  "function",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Evaluar condiciones",
+        "func":  "var limits = msg.payload || [];\nvar telemetry = global.get(\u0027hidroTelemetryCurrent\u0027);\nif (!telemetry || !telemetry.values) {\n    node.status({ fill: \u0027yellow\u0027, shape: \u0027ring\u0027, text: \u0027sin telemetria\u0027 });\n    return null;\n}\n\nvar values = telemetry.values;\nvar messages = [];\n\nfunction toNumber(value) {\n    var n = Number(value);\n    return Number.isFinite(n) ? n : null;\n}\n\nfunction toBool(value) {\n    if (typeof value === \u0027boolean\u0027) return value;\n    if (typeof value === \u0027number\u0027) return value !== 0;\n    if (typeof value === \u0027string\u0027) return value.toLowerCase() === \u0027true\u0027 || value === \u00271\u0027;\n    return null;\n}\n\nlimits.forEach(function (limit) {\n    var tag = limit.tag_id;\n    if (values[tag] === undefined || values[tag] === null) return;\n\n    var alarm = false;\n    var numericValue = null;\n    var boolValue = null;\n    var low = limit.limit_low === null || limit.limit_low === undefined ? null : Number(limit.limit_low);\n    var high = limit.limit_high === null || limit.limit_high === undefined ? null : Number(limit.limit_high);\n\n    if (limit.alarm_type === \u0027bool_equals\u0027) {\n        boolValue = toBool(values[tag]);\n        var alarmBool = toBool(limit.bool_alarm_value);\n        if (boolValue === null || alarmBool === null) return;\n        alarm = boolValue === alarmBool;\n    } else {\n        numericValue = toNumber(values[tag]);\n        if (numericValue === null) return;\n        if ((limit.alarm_type === \u0027range\u0027 || limit.alarm_type === \u0027low\u0027) \u0026\u0026 low !== null \u0026\u0026 numericValue \u003c low) alarm = true;\n        if ((limit.alarm_type === \u0027range\u0027 || limit.alarm_type === \u0027high\u0027) \u0026\u0026 high !== null \u0026\u0026 numericValue \u003e high) alarm = true;\n    }\n\n    if (alarm) {\n        messages.push({\n            query: \"INSERT INTO alarm_events (tag_id, alarm_type, severity, value_numeric, value_bool, message, state, started_at) SELECT $1, $2, $3, $4, $5, $6, \u0027active\u0027, now() WHERE NOT EXISTS (SELECT 1 FROM alarm_events WHERE tag_id = $1 AND alarm_type = $2 AND state = \u0027active\u0027);\",\n            params: [tag, limit.alarm_type, limit.severity || \u0027medium\u0027, numericValue, boolValue, limit.message || (\u0027Alarma activa: \u0027 + tag)]\n        });\n    } else {\n        messages.push({\n            query: \"UPDATE alarm_events SET state = \u0027cleared\u0027, cleared_at = now() WHERE tag_id = $1 AND alarm_type = $2 AND state = \u0027active\u0027;\",\n            params: [tag, limit.alarm_type]\n        });\n    }\n});\n\nnode.status({ fill: \u0027green\u0027, shape: \u0027dot\u0027, text: messages.length + \u0027 evaluaciones\u0027 });\nreturn [messages];",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  680,
+        "y":  100,
+        "wires":  [
+                      "pg_alarm_event_write_001"
+                  ]
+    },
+    {
+        "id":  "pg_alarm_event_write_001",
+        "type":  "postgresql",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Actualizar eventos alarma",
+        "query":  "",
+        "postgreSQLConfig":  "postgres_config_hidro_alarm_001",
+        "split":  false,
+        "rowsPerMsg":  "1",
+        "outputs":  1,
+        "x":  930,
+        "y":  100,
+        "wires":  [
+                      "debug_alarm_eval_001"
+                  ]
+    },
+    {
+        "id":  "debug_alarm_eval_001",
+        "type":  "debug",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "debug alarmas",
+        "active":  false,
+        "tosidebar":  true,
+        "console":  false,
+        "tostatus":  false,
+        "complete":  "pgsql",
+        "targetType":  "msg",
+        "statusVal":  "",
+        "statusType":  "auto",
+        "x":  1160,
+        "y":  100,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_active_alarms_001",
+        "type":  "http in",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "GET active alarms",
+        "url":  "/api/alarms/active",
+        "method":  "get",
+        "upload":  false,
+        "swaggerDoc":  "",
+        "x":  160,
+        "y":  220,
+        "wires":  [
+                      "fn_active_alarms_query_001"
+                  ]
+    },
+    {
+        "id":  "fn_active_alarms_query_001",
+        "type":  "function",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Query active alarms",
+        "func":  "msg.query = \"SELECT a.id, a.tag_id, t.nombre_visible, a.alarm_type, a.severity, a.value_numeric, a.value_bool, a.message, a.state, a.started_at, a.acknowledged_at, a.cleared_at, a.operator_name FROM alarm_events a LEFT JOIN tags t ON t.tag_id = a.tag_id WHERE a.state = \u0027active\u0027 ORDER BY a.started_at DESC;\";\nreturn msg;",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  400,
+        "y":  220,
+        "wires":  [
+                      "pg_active_alarms_001"
+                  ]
+    },
+    {
+        "id":  "pg_active_alarms_001",
+        "type":  "postgresql",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Consultar alarmas activas",
+        "query":  "",
+        "postgreSQLConfig":  "postgres_config_hidro_alarm_001",
+        "split":  false,
+        "rowsPerMsg":  "1",
+        "outputs":  1,
+        "x":  660,
+        "y":  220,
+        "wires":  [
+                      "http_active_alarms_response_001"
+                  ]
+    },
+    {
+        "id":  "http_active_alarms_response_001",
+        "type":  "http response",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "HTTP active alarms",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  920,
+        "y":  220,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_alarm_history_001",
+        "type":  "http in",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "GET alarm history",
+        "url":  "/api/alarms/history",
+        "method":  "get",
+        "upload":  false,
+        "swaggerDoc":  "",
+        "x":  160,
+        "y":  300,
+        "wires":  [
+                      "fn_alarm_history_query_001"
+                  ]
+    },
+    {
+        "id":  "fn_alarm_history_query_001",
+        "type":  "function",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Query alarm history",
+        "func":  "var limit = parseInt(msg.req.query.limit || \u0027100\u0027, 10);\nif (!Number.isFinite(limit) || limit \u003c 1 || limit \u003e 1000) limit = 100;\nmsg.query = \"SELECT a.id, a.tag_id, t.nombre_visible, a.alarm_type, a.severity, a.value_numeric, a.value_bool, a.message, a.state, a.started_at, a.acknowledged_at, a.cleared_at, a.operator_name FROM alarm_events a LEFT JOIN tags t ON t.tag_id = a.tag_id ORDER BY a.started_at DESC LIMIT $1;\";\nmsg.params = [limit];\nreturn msg;",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  400,
+        "y":  300,
+        "wires":  [
+                      "pg_alarm_history_001"
+                  ]
+    },
+    {
+        "id":  "pg_alarm_history_001",
+        "type":  "postgresql",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Consultar historico alarmas",
+        "query":  "",
+        "postgreSQLConfig":  "postgres_config_hidro_alarm_001",
+        "split":  false,
+        "rowsPerMsg":  "1",
+        "outputs":  1,
+        "x":  670,
+        "y":  300,
+        "wires":  [
+                      "http_alarm_history_response_001"
+                  ]
+    },
+    {
+        "id":  "http_alarm_history_response_001",
+        "type":  "http response",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "HTTP alarm history",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  930,
+        "y":  300,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_alarm_limits_001",
+        "type":  "http in",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "GET alarm limits",
+        "url":  "/api/alarm-limits",
+        "method":  "get",
+        "upload":  false,
+        "swaggerDoc":  "",
+        "x":  150,
+        "y":  400,
+        "wires":  [
+                      "fn_alarm_limits_query_001"
+                  ]
+    },
+    {
+        "id":  "fn_alarm_limits_query_001",
+        "type":  "function",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Query alarm limits",
+        "func":  "msg.query = \"SELECT l.id, l.tag_id, t.nombre_visible, l.alarm_type, l.enabled, l.severity, l.limit_low, l.limit_high, l.bool_alarm_value, l.unit, l.message, l.technical_note, l.updated_at FROM alarm_limits l LEFT JOIN tags t ON t.tag_id = l.tag_id ORDER BY l.id;\";\nreturn msg;",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  400,
+        "y":  400,
+        "wires":  [
+                      "pg_alarm_limits_list_001"
+                  ]
+    },
+    {
+        "id":  "pg_alarm_limits_list_001",
+        "type":  "postgresql",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Consultar limites alarma",
+        "query":  "",
+        "postgreSQLConfig":  "postgres_config_hidro_alarm_001",
+        "split":  false,
+        "rowsPerMsg":  "1",
+        "outputs":  1,
+        "x":  660,
+        "y":  400,
+        "wires":  [
+                      "http_alarm_limits_response_001"
+                  ]
+    },
+    {
+        "id":  "http_alarm_limits_response_001",
+        "type":  "http response",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "HTTP alarm limits",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  920,
+        "y":  400,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_update_alarm_limit_001",
+        "type":  "http in",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "POST alarm limits",
+        "url":  "/api/alarm-limits",
+        "method":  "post",
+        "upload":  false,
+        "swaggerDoc":  "",
+        "x":  160,
+        "y":  480,
+        "wires":  [
+                      "fn_update_alarm_limit_001"
+                  ]
+    },
+    {
+        "id":  "fn_update_alarm_limit_001",
+        "type":  "function",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Preparar update limite",
+        "func":  "var body = msg.payload || {};\nvar id = parseInt(body.id, 10);\nif (!Number.isFinite(id) || id \u003c 1) {\n    msg.statusCode = 400;\n    msg.payload = { error: \u0027id de limite invalido\u0027 };\n    return [null, msg];\n}\n\nfunction nullableNumber(value) {\n    if (value === undefined || value === null || value === \u0027\u0027) return null;\n    var n = Number(value);\n    return Number.isFinite(n) ? n : null;\n}\n\nfunction nullableBool(value) {\n    if (value === undefined || value === null || value === \u0027\u0027) return null;\n    if (typeof value === \u0027boolean\u0027) return value;\n    if (typeof value === \u0027number\u0027) return value !== 0;\n    if (typeof value === \u0027string\u0027) return value.toLowerCase() === \u0027true\u0027 || value === \u00271\u0027;\n    return null;\n}\n\nmsg.query = \"UPDATE alarm_limits SET enabled = $2, severity = $3, limit_low = $4, limit_high = $5, bool_alarm_value = $6, message = $7, updated_at = now() WHERE id = $1 RETURNING id, tag_id, alarm_type, enabled, severity, limit_low, limit_high, bool_alarm_value, unit, message, technical_note, updated_at;\";\nmsg.params = [\n    id,\n    Boolean(body.enabled),\n    body.severity || \u0027medium\u0027,\n    nullableNumber(body.limit_low),\n    nullableNumber(body.limit_high),\n    nullableBool(body.bool_alarm_value),\n    body.message || \u0027Alarma de proceso\u0027\n];\nreturn [msg, null];",
+        "outputs":  2,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  420,
+        "y":  480,
+        "wires":  [
+                      [
+                          "pg_update_alarm_limit_001"
+                      ],
+                      [
+                          "http_update_alarm_limit_response_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "pg_update_alarm_limit_001",
+        "type":  "postgresql",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Actualizar limite alarma",
+        "query":  "",
+        "postgreSQLConfig":  "postgres_config_hidro_alarm_001",
+        "split":  false,
+        "rowsPerMsg":  "1",
+        "outputs":  1,
+        "x":  680,
+        "y":  460,
+        "wires":  [
+                      "http_update_alarm_limit_response_001"
+                  ]
+    },
+    {
+        "id":  "http_update_alarm_limit_response_001",
+        "type":  "http response",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "HTTP update alarm limit",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  950,
+        "y":  480,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_get_notification_emails_001",
+        "type":  "http in",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "GET notification emails",
+        "url":  "/api/notification-emails",
+        "method":  "get",
+        "upload":  false,
+        "swaggerDoc":  "",
+        "x":  170,
+        "y":  580,
+        "wires":  [
+                      "fn_notification_emails_query_001"
+                  ]
+    },
+    {
+        "id":  "fn_notification_emails_query_001",
+        "type":  "function",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Query notification emails",
+        "func":  "msg.query = \"SELECT id, email, name, enabled, created_at FROM notification_emails WHERE enabled = true ORDER BY id DESC;\";\nreturn msg;",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  430,
+        "y":  580,
+        "wires":  [
+                      "pg_notification_emails_list_001"
+                  ]
+    },
+    {
+        "id":  "pg_notification_emails_list_001",
+        "type":  "postgresql",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Consultar correos alarma",
+        "query":  "",
+        "postgreSQLConfig":  "postgres_config_hidro_alarm_001",
+        "split":  false,
+        "rowsPerMsg":  "1",
+        "outputs":  1,
+        "x":  690,
+        "y":  580,
+        "wires":  [
+                      "http_notification_emails_response_001"
+                  ]
+    },
+    {
+        "id":  "http_notification_emails_response_001",
+        "type":  "http response",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "HTTP notification emails",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  960,
+        "y":  580,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_post_notification_email_001",
+        "type":  "http in",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "POST notification email",
+        "url":  "/api/notification-emails",
+        "method":  "post",
+        "upload":  false,
+        "swaggerDoc":  "",
+        "x":  170,
+        "y":  660,
+        "wires":  [
+                      "fn_notification_email_insert_001"
+                  ]
+    },
+    {
+        "id":  "fn_notification_email_insert_001",
+        "type":  "function",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Preparar insert correo",
+        "func":  "var body = msg.payload || {};\nvar email = (body.email || '').trim().toLowerCase();\nvar name = body.name || null;\nif (!email || email.indexOf('@') < 1) {\n    msg.statusCode = 400;\n    msg.payload = { error: 'correo invalido' };\n    return [null, msg];\n}\nmsg.query = \"INSERT INTO notification_emails (email, name, enabled) VALUES ($1, $2, true) ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, enabled = true, updated_at = now() RETURNING id, email, name, enabled, created_at;\";\nmsg.params = [email, name];\nreturn [msg, null];",
+        "outputs":  2,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  430,
+        "y":  660,
+        "wires":  [
+                      [
+                          "pg_notification_email_insert_001"
+                      ],
+                      [
+                          "http_notification_email_insert_response_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "pg_notification_email_insert_001",
+        "type":  "postgresql",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "Insertar correo alarma",
+        "query":  "",
+        "postgreSQLConfig":  "postgres_config_hidro_alarm_001",
+        "split":  false,
+        "rowsPerMsg":  "1",
+        "outputs":  1,
+        "x":  690,
+        "y":  640,
+        "wires":  [
+                      "http_notification_email_insert_response_001"
+                  ]
+    },
+    {
+        "id":  "http_notification_email_insert_response_001",
+        "type":  "http response",
+        "z":  "hidro_alarms_tab_001",
+        "name":  "HTTP notification email insert",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  980,
+        "y":  660,
+        "wires":  [
+
+                  ]
+    }
+]

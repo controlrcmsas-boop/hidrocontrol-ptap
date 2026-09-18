@@ -1,0 +1,190 @@
+﻿[
+    {
+        "id":  "hidro_history_tab_001",
+        "type":  "tab",
+        "label":  "HIDROCONTROL PTAP - HISTORY",
+        "disabled":  false,
+        "info":  "Guarda historicos de calidad/proceso desde global.hidroTelemetryCurrent hacia PostgreSQL."
+    },
+    {
+        "id":  "postgres_config_hidro_001",
+        "type":  "postgreSQLConfig",
+        "name":  "PostgreSQL HIDROCONTROL PTAP",
+        "host":  "127.0.0.1",
+        "hostFieldType":  "str",
+        "port":  "5432",
+        "portFieldType":  "num",
+        "database":  "hidrocontrol_ptap",
+        "databaseFieldType":  "str",
+        "ssl":  "false",
+        "sslFieldType":  "bool",
+        "applicationName":  "node-red-hidrocontrol-ptap",
+        "applicationNameType":  "str",
+        "max":  "10",
+        "maxFieldType":  "num",
+        "idle":  "10000",
+        "idleFieldType":  "num",
+        "connectionTimeout":  "10000",
+        "connectionTimeoutFieldType":  "num",
+        "user":  "hidrocontrol_app",
+        "userFieldType":  "str",
+        "password":  "hidrocontrol2026",
+        "passwordFieldType":  "str"
+    },
+    {
+        "id":  "inject_history_001",
+        "type":  "inject",
+        "z":  "hidro_history_tab_001",
+        "name":  "Cada 10 s guardar historicos",
+        "props":  [
+                      {
+                          "p":  "payload"
+                      }
+                  ],
+        "repeat":  "10",
+        "crontab":  "",
+        "once":  false,
+        "onceDelay":  0.1,
+        "topic":  "",
+        "payload":  "",
+        "payloadType":  "date",
+        "x":  180,
+        "y":  120,
+        "wires":  [
+                      [
+                          "fn_prepare_history_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "fn_prepare_history_001",
+        "type":  "function",
+        "z":  "hidro_history_tab_001",
+        "name":  "Preparar inserts historicos",
+        "func":  "var telemetry = global.get(\u0027hidroTelemetryCurrent\u0027);\nif (!telemetry || !telemetry.values) {\n    node.status({ fill: \u0027yellow\u0027, shape: \u0027ring\u0027, text: \u0027sin telemetria\u0027 });\n    return null;\n}\n\nvar values = telemetry.values;\nvar qualityTags = [\n    [\u0027ph_agua_cruda\u0027, \u0027pH\u0027],\n    [\u0027turbidez_agua_cruda\u0027, \u0027NTU\u0027],\n    [\u0027conductividad_agua_cruda\u0027, \u0027uS/cm\u0027],\n    [\u0027ph_agua_tratada\u0027, \u0027pH\u0027],\n    [\u0027turbidez_agua_tratada\u0027, \u0027NTU\u0027],\n    [\u0027conductividad_agua_tratada\u0027, \u0027uS/cm\u0027]\n];\n\nvar telemetryTags = [\n    [\u0027caudal_bomba_principal\u0027, \u0027numeric\u0027],\n    [\u0027caudal_distribucion\u0027, \u0027numeric\u0027],\n    [\u0027presion_bomba_principal\u0027, \u0027numeric\u0027],\n    [\u0027nivel_tanque_agua_cruda\u0027, \u0027bool\u0027],\n    [\u0027bomba_principal_estado\u0027, \u0027bool\u0027],\n    [\u0027dosificador_sulfato_estado\u0027, \u0027bool\u0027],\n    [\u0027dosificador_cloro_estado\u0027, \u0027bool\u0027],\n    [\u0027modo_remoto_habilitado\u0027, \u0027bool\u0027],\n    [\u0027plc_en_falla\u0027, \u0027bool\u0027]\n];\n\nvar messages = [];\n\nqualityTags.forEach(function (item) {\n    var tag = item[0];\n    var unit = item[1];\n    var value = Number(values[tag]);\n    if (Number.isFinite(value)) {\n        messages.push({\n            query: \u0027INSERT INTO quality_history (tag_id, value_numeric, unit, quality, source, recorded_at) VALUES ($1, $2, $3, $4, $5, now());\u0027,\n            params: [tag, value, unit, \u0027good\u0027, \u0027node-red\u0027]\n        });\n    }\n});\n\ntelemetryTags.forEach(function (item) {\n    var tag = item[0];\n    var kind = item[1];\n    if (values[tag] === undefined || values[tag] === null) return;\n\n    if (kind === \u0027bool\u0027) {\n        messages.push({\n            query: \u0027INSERT INTO telemetry_history (tag_id, value_bool, quality, source, recorded_at) VALUES ($1, $2, $3, $4, now());\u0027,\n            params: [tag, Boolean(values[tag]), \u0027good\u0027, \u0027node-red\u0027]\n        });\n    } else {\n        var numeric = Number(values[tag]);\n        if (Number.isFinite(numeric)) {\n            messages.push({\n                query: \u0027INSERT INTO telemetry_history (tag_id, value_numeric, quality, source, recorded_at) VALUES ($1, $2, $3, $4, now());\u0027,\n                params: [tag, numeric, \u0027good\u0027, \u0027node-red\u0027]\n            });\n        }\n    }\n});\n\nnode.status({ fill: \u0027green\u0027, shape: \u0027dot\u0027, text: messages.length + \u0027 inserts\u0027 });\nreturn [messages];",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  450,
+        "y":  120,
+        "wires":  [
+                      [
+                          "postgres_insert_history_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "postgres_insert_history_001",
+        "type":  "postgresql",
+        "z":  "hidro_history_tab_001",
+        "name":  "Insertar historicos PostgreSQL",
+        "query":  "",
+        "postgreSQLConfig":  "postgres_config_hidro_001",
+        "split":  false,
+        "rowsPerMsg":  "1",
+        "outputs":  1,
+        "x":  730,
+        "y":  120,
+        "wires":  [
+                      [
+                          "debug_history_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "debug_history_001",
+        "type":  "debug",
+        "z":  "hidro_history_tab_001",
+        "name":  "debug historicos",
+        "active":  false,
+        "tosidebar":  true,
+        "console":  false,
+        "tostatus":  false,
+        "complete":  "pgsql",
+        "targetType":  "msg",
+        "statusVal":  "",
+        "statusType":  "auto",
+        "x":  990,
+        "y":  120,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_get_quality_history_001",
+        "type":  "http in",
+        "z":  "hidro_history_tab_001",
+        "name":  "GET quality history",
+        "url":  "/api/telemetry/quality-history",
+        "method":  "get",
+        "upload":  false,
+        "swaggerDoc":  "",
+        "x":  170,
+        "y":  240,
+        "wires":  [
+                      [
+                          "fn_quality_history_query_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "fn_quality_history_query_001",
+        "type":  "function",
+        "z":  "hidro_history_tab_001",
+        "name":  "Query quality history",
+        "func":  "var tag = msg.req.query.tag || \u0027ph_agua_tratada\u0027;\nvar limit = parseInt(msg.req.query.limit || \u0027200\u0027, 10);\nif (!Number.isFinite(limit) || limit \u003c 1 || limit \u003e 2000) limit = 200;\nmsg.query = \u0027SELECT tag_id, value_numeric, unit, quality, recorded_at FROM quality_history WHERE tag_id = $1 ORDER BY recorded_at DESC LIMIT $2;\u0027;\nmsg.params = [tag, limit];\nreturn msg;",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  430,
+        "y":  240,
+        "wires":  [
+                      [
+                          "postgres_query_quality_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "postgres_query_quality_001",
+        "type":  "postgresql",
+        "z":  "hidro_history_tab_001",
+        "name":  "Consultar quality_history",
+        "query":  "",
+        "postgreSQLConfig":  "postgres_config_hidro_001",
+        "split":  false,
+        "rowsPerMsg":  "1",
+        "outputs":  1,
+        "x":  690,
+        "y":  240,
+        "wires":  [
+                      [
+                          "http_response_quality_history_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "http_response_quality_history_001",
+        "type":  "http response",
+        "z":  "hidro_history_tab_001",
+        "name":  "HTTP response quality history",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  980,
+        "y":  240,
+        "wires":  [
+
+                  ]
+    }
+]

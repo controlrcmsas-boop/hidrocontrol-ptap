@@ -1,0 +1,51 @@
+# ==============================================================================
+# HIDROCONTROL PTAP V2.2 - GITIGNORE
+# ==============================================================================
+
+# --- .NET / C# / Visual Studio ---
+**/[Bb]in/
+**/[Oo]bj/
+**/.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+PTAPControl.slnx
+
+# --- Node.js / Node-RED / WhatsApp Gateway ---
+**/node_modules/
+**/node modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# --- WhatsApp Gateway Session & Credentials (CRÍTICO) ---
+**/services/whatsapp-gateway/auth_info/
+**/services/whatsapp-gateway/auth info/
+**/auth_info/
+**/auth info/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# --- Base de Datos & Backups Temporales ---
+*.bak
+*.dump
+*.log
+
+# --- Sistema Operativo & IDE ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+*.swp
+*~

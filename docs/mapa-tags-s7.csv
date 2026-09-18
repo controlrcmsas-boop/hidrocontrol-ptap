@@ -1,0 +1,28 @@
+﻿tag_id,nombre_visible,db,direccion,tipo_s7,unidad,lectura_escritura,historizar,alarma,descripcion
+bomba_principal_estado,Bomba principal estado,DB10,DBX0.0,BOOL,,lectura,si,si,Estado real B1
+dosificador_sulfato_estado,Dosificador sulfato estado,DB10,DBX0.1,BOOL,,lectura,si,si,Estado real B2
+dosificador_cloro_estado,Dosificador cloro estado,DB10,DBX0.2,BOOL,,lectura,si,si,Estado real B3
+nivel_tanque_agua_cruda,Nivel tanque agua cruda,DB10,DBX0.3,BOOL,,lectura,si,si,Sensor digital nivel S1
+modo_remoto_habilitado,Modo remoto habilitado,DB10,DBX0.4,BOOL,,lectura,si,si,Permiso de comandos remotos
+plc_en_falla,PLC en falla,DB10,DBX0.5,BOOL,,lectura,si,si,Falla general PLC/proceso
+comando_rechazado,Comando rechazado,DB10,DBX0.6,BOOL,,lectura,si,si,PLC rechazo ultimo comando
+ultimo_comando_aceptado,Ultimo comando aceptado,DB10,DBX0.7,BOOL,,lectura,si,si,PLC acepto ultimo comando
+ph_agua_cruda,pH agua cruda,DB10,DBD4,REAL,pH,lectura,si,si,S2 escalado
+turbidez_agua_cruda,Turbidez agua cruda,DB10,DBD8,REAL,NTU,lectura,si,si,S3 escalado
+conductividad_agua_cruda,Conductividad agua cruda,DB10,DBD12,REAL,uS/cm,lectura,si,si,S4 escalado
+ph_agua_tratada,pH agua tratada,DB10,DBD16,REAL,pH,lectura,si,si,S5 escalado
+turbidez_agua_tratada,Turbidez agua tratada,DB10,DBD20,REAL,NTU,lectura,si,si,S6 escalado
+conductividad_agua_tratada,Conductividad agua tratada,DB10,DBD24,REAL,uS/cm,lectura,si,si,S7 escalado
+caudal_bomba_principal,Caudal bomba principal,DB10,DBD28,REAL,L/min,lectura,si,si,S8 escalado
+caudal_distribucion,Caudal distribucion,DB10,DBD32,REAL,L/min,lectura,si,si,S9 escalado
+presion_bomba_principal,Presion bomba principal,DB10,DBD36,REAL,bar,lectura,si,si,S10 escalado pendiente canal
+watchdog_plc,Watchdog PLC,DB10,DBD40,DINT,,lectura,no,si,Contador vivo PLC
+comando_bomba_principal_start,Comando prender bomba principal,DB11,DBX0.0,BOOL,,escritura,si,si,Solicitud prender B1
+comando_bomba_principal_stop,Comando apagar bomba principal,DB11,DBX0.1,BOOL,,escritura,si,si,Solicitud apagar B1
+comando_dosificador_sulfato_start,Comando prender dosificador sulfato,DB11,DBX0.2,BOOL,,escritura,si,si,Solicitud prender B2
+comando_dosificador_sulfato_stop,Comando apagar dosificador sulfato,DB11,DBX0.3,BOOL,,escritura,si,si,Solicitud apagar B2
+comando_dosificador_cloro_start,Comando prender dosificador cloro,DB11,DBX0.4,BOOL,,escritura,si,si,Solicitud prender B3
+comando_dosificador_cloro_stop,Comando apagar dosificador cloro,DB11,DBX0.5,BOOL,,escritura,si,si,Solicitud apagar B3
+reset_alarmas,Reset alarmas,DB11,DBX0.6,BOOL,,escritura,si,si,Solicitud reset/ack alarmas
+watchdog_scada,Watchdog SCADA,DB11,DBX0.7,BOOL,,escritura,no,si,Pulso vivo Node-RED
+command_sequence,Secuencia comando,DB11,DBD4,DINT,,escritura,si,no,Consecutivo comando Node-RED

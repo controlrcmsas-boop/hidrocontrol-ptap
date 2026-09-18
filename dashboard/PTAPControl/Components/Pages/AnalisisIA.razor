@@ -1,0 +1,552 @@
+@page "/analisis-ia"
+@rendermode InteractiveServer
+@using PTAPControl.Models
+@using PTAPControl.Services
+@implements IAsyncDisposable
+@inject NodeRedApiClient Api
+@inject GeminiAiService Ai
+@inject AiChatStateService ChatState
+
+<PageTitle>Análisis IA - HIDROCONTROL PTAP</PageTitle>
+
+<section class="ai-page">
+    <!-- Encabezado Superior Compacto -->
+    <header class="ai-header-banner">
+        <div class="ai-header-title">
+            <p class="eyebrow">HIDROCONTROL PTAP V2.2 &bull; SUPERVISOR VIRTUAL LOCAL</p>
+            <h1>
+                <span>🧠</span>
+                <span>Supervisor de Planta PTAP (100% Local / Offline)</span>
+            </h1>
+        </div>
+        <div class="ai-header-actions">
+            <button type="button" class="btn-ai-primary" @onclick="ExecuteComprehensiveAnalysisAsync" disabled="@IsAnalyzing">
+                @if (IsAnalyzing)
+                {
+                    <span>⏳ Analizando...</span>
+                }
+                else
+                {
+                    <span>⚡ Actualizar Diagnóstico</span>
+                }
+            </button>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(StatusMessage))
+    {
+        <div class="alert-line @(IsStatusSuccess ? "alert-success" : "")">
+            @StatusMessage
+        </div>
+    }
+
+    <!-- Layout Principal: Barra Lateral Compacta + Chat Dominante Central -->
+    <div class="ai-workspace-layout">
+        <!-- Columna Izquierda: Información de Planta, Dosificación Compacta y Anomalías -->
+        <aside class="ai-sidebar-column">
+            <!-- 1. Estado y Salud de la Planta -->
+            @if (Analysis is not null)
+            {
+                <div class="ai-sidebar-health-card">
+                    <div class="ai-health-top-row">
+                        <div class="ai-score-pill">
+                            <span>🩺</span>
+                            <span>@Analysis.ScorePercentage%</span>
+                            <small>Salud</small>
+                        </div>
+                        <span class="ai-status-badge @GetStatusBadgeClass(Analysis.OverallStatus)">
+                            @Analysis.OverallStatus
+                        </span>
+                    </div>
+
+                    <p style="font-size: 0.84rem; color: #cbd5e1; margin: 0; line-height: 1.35;">
+                        @Analysis.ExecutiveSummary
+                    </p>
+
+                    @if (Analysis.ImmediateRecommendations.Count > 0)
+                    {
+                        <div style="background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 4px; border-left: 2px solid var(--cyan);">
+                            <small style="color: var(--cyan); font-weight: 700; display: block; margin-bottom: 2px;">Recomendación Clave:</small>
+                            <span style="font-size: 0.8rem; color: #e2e8f0;">@Analysis.ImmediateRecommendations.FirstOrDefault()</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- 2. Asesor de Dosificación Supervisada (Compacto) -->
+            <div class="ai-sidebar-dosing-section">
+                <div class="section-title-badge">
+                    <h2 style="font-size: 0.95rem;">
+                        <span>🧪</span>
+                        <span>Dosificación Supervisada</span>
+                    </h2>
+                    <span class="supervision-pill">Human-in-Loop</span>
+                </div>
+
+                @if (DosingSuggestions.Count == 0)
+                {
+                    <div style="padding: 12px; text-align: center; color: var(--muted); font-size: 0.8rem; background: rgba(17,31,39,0.5); border-radius: 6px;">
+                        Sin sugerencias pendientes.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var sugg in DosingSuggestions)
+                    {
+                        <div class="dosing-card-compact @(sugg.Status == "Aprobado" ? "active" : "")">
+                            <div class="dosing-compact-header">
+                                <strong>@sugg.Chemical</strong>
+                                <span class="ai-status-badge @(sugg.Status == "Aprobado" ? "optimo" : sugg.Status == "Rechazado" ? "critico" : "atencion")" style="font-size: 0.68rem; padding: 2px 6px;">
+                                    @sugg.Status
+                                </span>
+                            </div>
+
+                            <div class="dosing-compact-vals">
+                                <div>
+                                    <small>Actual</small>
+                                    <span>@sugg.CurrentValue</span>
+                                </div>
+                                <div style="color: #a855f7; font-weight: bold;">&rarr;</div>
+                                <div>
+                                    <small>Sugerido IA</small>
+                                    <strong>@sugg.SuggestedDoseMgL mg/L</strong>
+                                </div>
+                            </div>
+
+                            <div style="font-size: 0.76rem; color: #94a3b8; line-height: 1.25;">
+                                @sugg.Reason
+                            </div>
+
+                            @if (sugg.Status == "Pendiente")
+                            {
+                                <div class="dosing-compact-actions">
+                                    <button type="button" class="btn-approve-compact" @onclick="() => ApproveSuggestionAsync(sugg)">
+                                        ✓ Enviar a PLC
+                                    </button>
+                                    <button type="button" class="btn-discard-compact" @onclick="() => DiscardSuggestion(sugg)">
+                                        ✕
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- 3. Anomalías Detectadas (Compactas) -->
+            @if (Analysis?.Anomalies != null && Analysis.Anomalies.Count > 0)
+            {
+                <div class="ai-sidebar-health-card">
+                    <strong style="font-size: 0.85rem; color: #e7c765; display: flex; align-items: center; gap: 6px;">
+                        <span>⚠️</span> Anomalías Detectadas
+                    </strong>
+                    @foreach (var anomaly in Analysis.Anomalies.Take(2))
+                    {
+                        <div style="font-size: 0.78rem; border-left: 2px solid @(anomaly.Level == "Critico" ? "#ff6b6b" : "#e7c765"); padding-left: 6px; margin-top: 4px;">
+                            <strong style="color: #f1f5f9;">[@anomaly.Equipment] @anomaly.Title</strong>
+                            <p style="margin: 2px 0 0 0; color: var(--muted);">@anomaly.RecommendedAction</p>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- 4. Mini Registro de Auditoría -->
+            @if (Ai.AuditLog.Count > 0)
+            {
+                <div class="ai-sidebar-health-card">
+                    <strong style="font-size: 0.85rem; color: #a855f7; display: flex; align-items: center; gap: 6px;">
+                        <span>📜</span> Últimas Decisiones Auditadas
+                    </strong>
+                    <div style="font-size: 0.76rem; max-height: 140px; overflow-y: auto;">
+                        @foreach (var audit in Ai.AuditLog.TakeLast(3).Reverse())
+                        {
+                            <div style="padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                <span style="color: var(--muted);">@audit.Timestamp.ToLocalTime().ToString("HH:mm:ss")</span> &bull; 
+                                <strong style="color: #cbd5e1;">@audit.Chemical:</strong> @audit.Action
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </aside>
+
+        <!-- Columna Central/Derecha: El Chat Inteligente es el PROTAGONISTA -->
+        <main class="ai-chat-dominant-area">
+            <!-- Header del Chat con Telemetría Activa -->
+            <div class="dominant-chat-header">
+                <div>
+                    <h2>
+                        <span>💬</span>
+                        <span>Supervisor Conversacional de Planta</span>
+                    </h2>
+                    <p>
+                        Agua Cruda: <strong style="color: var(--cyan);">@(Telemetry?.GetNumber("turbidez_agua_cruda")?.ToString("F1") ?? "--") NTU</strong> | 
+                        Agua Tratada: <strong style="color: #48d597;">@(Telemetry?.GetNumber("turbidez_agua_tratada")?.ToString("F1") ?? "--") NTU</strong> | 
+                        Bomba B1: <strong style="color: @(Telemetry?.GetBool("bomba_principal_estado") == true ? "#48d597" : "#ff6b6b");">@(Telemetry?.GetBool("bomba_principal_estado") == true ? "ON" : "OFF")</strong>
+                    </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="supervision-pill" style="background: rgba(168, 85, 247, 0.15); border-color: #a855f7; color: #c084fc;">
+                        @(Ai.IsLocalProvider ? "💻 Agente Local (Offline)" : "✨ Gemini Pro Nube")
+                    </span>
+                    <button type="button" class="btn-clear-chat" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; color: var(--muted); font-size: 0.75rem; padding: 4px 10px; cursor: pointer;" @onclick="ClearChatHistory" title="Reiniciar conversación con el supervisor">
+                        <span>🗑️ Limpiar</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Feed de Mensajes Expansivo -->
+            <div class="dominant-chat-feed" @ref="chatFeedRef">
+                @foreach (var msg in ChatMessages)
+                {
+                    <div class="dominant-chat-bubble @(msg.Role == "user" ? "user" : "assistant")">
+                        @if (msg.IsThinking)
+                        {
+                            <span><em>Consultando telemetría y razonando respuesta...</em></span>
+                        }
+                        else
+                        {
+                            <div>@((MarkupString)FormatMarkdown(msg.Content))</div>
+
+                            @if (msg.Action is not null)
+                            {
+                                <div class="chat-action-card @(msg.Action.ActionType == "START" ? "start" : "stop")" style="margin-top: 10px;">
+                                    <div class="chat-action-header @(msg.Action.ActionType == "START" ? "start" : "stop")">
+                                        <span>@(msg.Action.ActionType == "STOP_ALL" ? "🚨 PARADA GENERAL DE PLANTA" : msg.Action.ActionType == "STOP" ? "🛑 ORDEN DE APAGADO" : "🟢 ORDEN DE ARRANQUE")</span>
+                                        <span class="chat-action-status-pill @(msg.Action.Status == "Ejecutado" ? "executed" : msg.Action.Status == "Cancelado" ? "cancelled" : "")">
+                                            @msg.Action.Status
+                                        </span>
+                                    </div>
+                                    <div class="chat-action-body">
+                                        <strong>Equipo:</strong> @msg.Action.EquipmentName<br />
+                                        <strong>Motivo:</strong> @msg.Action.Reason
+                                    </div>
+                                    @if (msg.Action.Status == "Pendiente")
+                                    {
+                                        <div class="chat-action-btns">
+                                            <button type="button" class="btn-chat-execute @(msg.Action.ActionType == "START" ? "start" : "")" @onclick="() => ExecuteChatActionAsync(msg.Action)">
+                                                ⚡ Confirmar y Enviar al PLC
+                                            </button>
+                                            <button type="button" class="btn-chat-cancel" @onclick="() => CancelChatAction(msg.Action)">
+                                                ✕ Cancelar
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Sugerencias de Prompts Rápidos -->
+            <div class="dominant-quick-prompts">
+                <button type="button" class="btn-quick-query" style="border-color: rgba(255, 107, 107, 0.4); color: #ff8e8e;" @onclick='() => SendQuickQueryAsync("Desenergiza y apaga toda la planta de inmediato por seguridad")'>
+                    🚨 Desenergizar Todo
+                </button>
+                <button type="button" class="btn-quick-query" style="border-color: rgba(255, 107, 107, 0.3); color: #ffadad;" @onclick='() => SendQuickQueryAsync("Por favor apaga la bomba principal B1")'>
+                    🛑 Apagar Bomba B1
+                </button>
+                <button type="button" class="btn-quick-query" @onclick='() => SendQuickQueryAsync("¿Cómo está la calidad y remoción de turbidez en este momento?")'>
+                    📊 Diagnóstico Calidad
+                </button>
+                <button type="button" class="btn-quick-query" @onclick='() => SendQuickQueryAsync("¿Qué dosificación de coagulante recomiendas con el caudal actual?")'>
+                    🧪 Dosificación Coagulante
+                </button>
+                <button type="button" class="btn-quick-query" @onclick='() => SendQuickQueryAsync("Explícame las consecuencias de tener un pH bajo en el proceso")'>
+                    💧 Consecuencias pH Bajo
+                </button>
+            </div>
+
+            <!-- Barra de Entrada de Chat de Impacto -->
+            <div class="dominant-input-bar">
+                <input type="text" placeholder="Escribe tu consulta o instrucción técnica (ej: 'Apaga la bomba B1', 'Explícame el proceso de floculación')..." 
+                       @bind="CurrentQuestion" 
+                       @bind:event="oninput" 
+                       @onkeydown="HandleKeyDown" 
+                       disabled="@IsAsking" />
+                <button type="button" class="btn-ai-primary" style="padding: 10px 22px; font-size: 0.95rem;" @onclick="SendMessageAsync" disabled="@(IsAsking || string.IsNullOrWhiteSpace(CurrentQuestion))">
+                    <span>Enviar</span>
+                </button>
+            </div>
+        </main>
+    </div>
+</section>
+
+@code {
+    private TelemetryResponse? Telemetry;
+    private List<AlarmEvent> ActiveAlarms = [];
+    private PlantHealthAnalysis? Analysis;
+    private List<DosingSuggestion> DosingSuggestions = [];
+    private IReadOnlyList<AiChatMessage> ChatMessages => ChatState.Messages;
+    private string CurrentQuestion = string.Empty;
+    private bool IsAnalyzing;
+    private bool IsAsking;
+    private string? StatusMessage;
+    private bool IsStatusSuccess;
+    private ElementReference chatFeedRef;
+    private PeriodicTimer? timer;
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cts = new CancellationTokenSource();
+        
+        // Inicializar chat si es primera carga en la sesión
+        ChatState.EnsureInitialized();
+
+        await RefreshTelemetryAsync();
+        
+        // Carga inicial instantánea sin bloquear la interfaz
+        Analysis = Ai.GenerateSimulatedHealthAnalysis(Telemetry, ActiveAlarms);
+        Analysis.DosingSuggestions = Ai.GenerateDosingSuggestions(Telemetry);
+        DosingSuggestions = Analysis.DosingSuggestions;
+
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        _ = AutoRefreshTelemetryLoopAsync(cts.Token);
+    }
+
+    private async Task AutoRefreshTelemetryLoopAsync(CancellationToken token)
+    {
+        if (timer is null) return;
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await RefreshTelemetryAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task RefreshTelemetryAsync()
+    {
+        try
+        {
+            Telemetry = await Api.GetCurrentTelemetryAsync(cts?.Token ?? CancellationToken.None);
+            ActiveAlarms = await Api.GetActiveAlarmsAsync(cts?.Token ?? CancellationToken.None);
+        }
+        catch
+        {
+            // fallback
+        }
+    }
+
+    private async Task ExecuteComprehensiveAnalysisAsync()
+    {
+        if (IsAnalyzing) return;
+        IsAnalyzing = true;
+        StatusMessage = null;
+
+        try
+        {
+            await RefreshTelemetryAsync();
+            Analysis = await Ai.AnalyzePlantHealthAsync(Telemetry, ActiveAlarms, cts?.Token ?? CancellationToken.None);
+            DosingSuggestions = Analysis.DosingSuggestions;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error al analizar la planta: {ex.Message}";
+            IsStatusSuccess = false;
+        }
+        finally
+        {
+            IsAnalyzing = false;
+        }
+    }
+
+    private async Task ApproveSuggestionAsync(DosingSuggestion suggestion)
+    {
+        suggestion.Status = "Aprobado";
+        
+        var rawTurb = Telemetry?.GetNumber("turbidez_agua_cruda")?.ToString("F1") ?? "--";
+        var flow = Telemetry?.GetNumber("caudal_bomba_principal")?.ToString("F1") ?? "--";
+
+        // Registrar en auditoría
+        Ai.RecordAudit(new AiAuditEntry
+        {
+            Chemical = suggestion.Chemical,
+            Action = "Aprobado",
+            Operator = "Operador Autorizado",
+            DoseMgL = suggestion.SuggestedDoseMgL,
+            Details = $"Aprobada consigna de {suggestion.SuggestedDoseMgL} mg/L ({suggestion.SuggestedFrequencyHz} Hz) para {suggestion.TargetEquipment}.",
+            RawWaterConditions = $"Turb. Cruda: {rawTurb} NTU, Caudal: {flow} L/min"
+        });
+
+        // Enviar comando a Node-RED -> PLC
+        try
+        {
+            var cmd = suggestion.SuggestedAction == "stop" ? "stop" : "start";
+            var res = await Api.SendCommandAsync(suggestion.TargetEquipment, cmd, cts?.Token ?? CancellationToken.None);
+            
+            StatusMessage = $"✅ Sugerencia Aprobada: Consigna de {suggestion.Chemical} ({suggestion.SuggestedDoseMgL} mg/L) enviada con éxito al PLC ({suggestion.TargetEquipment}).";
+            IsStatusSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"⚠️ Sugerencia aprobada y registrada en auditoría, pero hubo un error de comunicación con el PLC: {ex.Message}";
+            IsStatusSuccess = false;
+        }
+    }
+
+    private void DiscardSuggestion(DosingSuggestion suggestion)
+    {
+        suggestion.Status = "Rechazado";
+        
+        var rawTurb = Telemetry?.GetNumber("turbidez_agua_cruda")?.ToString("F1") ?? "--";
+        var flow = Telemetry?.GetNumber("caudal_bomba_principal")?.ToString("F1") ?? "--";
+
+        Ai.RecordAudit(new AiAuditEntry
+        {
+            Chemical = suggestion.Chemical,
+            Action = "Rechazado",
+            Operator = "Operador",
+            DoseMgL = suggestion.SuggestedDoseMgL,
+            Details = "Sugerencia descartada por el operador. Las consignas del PLC se mantienen sin modificaciones.",
+            RawWaterConditions = $"Turb. Cruda: {rawTurb} NTU, Caudal: {flow} L/min"
+        });
+
+        StatusMessage = $"ℹ️ Sugerencia para {suggestion.Chemical} descartada. El PLC mantiene su operación habitual.";
+        IsStatusSuccess = false;
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CurrentQuestion) || IsAsking) return;
+
+        var userText = CurrentQuestion.Trim();
+        CurrentQuestion = string.Empty;
+
+        ChatState.AddUserMessage(userText);
+        var thinkingMsg = ChatState.AddThinkingMessage();
+        IsAsking = true;
+
+        try
+        {
+            var history = ChatState.GetHistoryForCopilot();
+            var (response, action) = await Ai.AskCopilotAsync(userText, Telemetry, ActiveAlarms, history, cts?.Token ?? CancellationToken.None);
+            ChatState.ReplaceThinkingWithResponse(thinkingMsg, response, action);
+        }
+        catch (Exception ex)
+        {
+            ChatState.ReplaceThinkingWithResponse(thinkingMsg, $"Error al consultar IA: {ex.Message}", null);
+        }
+        finally
+        {
+            IsAsking = false;
+        }
+    }
+
+    private async Task ExecuteChatActionAsync(AiProposedAction action)
+    {
+        action.Status = "Ejecutado";
+
+        try
+        {
+            if (action.ActionType == "STOP_ALL")
+            {
+                await Api.SendCommandAsync("bomba_principal", "stop", cts?.Token ?? CancellationToken.None);
+                await Api.SendCommandAsync("dosificador_sulfato", "stop", cts?.Token ?? CancellationToken.None);
+                await Api.SendCommandAsync("dosificador_cloro", "stop", cts?.Token ?? CancellationToken.None);
+
+                Ai.RecordAudit(new AiAuditEntry
+                {
+                    Chemical = "PLANTA GENERAL",
+                    Action = "DESENERGIZACIÓN / STOP GENERAL",
+                    Operator = "Operador (Vía Copiloto IA)",
+                    DoseMgL = 0,
+                    Details = $"Orden interactiva de desenergización ejecutada: Bomba B1 y dosificadores apagados. Motivo: {action.Reason}",
+                    RawWaterConditions = "INSTRUCCIÓN VÍA PROMPT IA"
+                });
+
+                ChatState.AddAssistantMessage("✅ **[Orden Ejecutada en PLC]:** Se han desenergizado y apagado con éxito la **Bomba Principal B1**, el **Dosificador de Sulfato B2** y el **Dosificador de Cloro B3**.");
+            }
+            else
+            {
+                var cmd = action.ActionType == "START" ? "start" : "stop";
+                await Api.SendCommandAsync(action.TargetEquipment, cmd, cts?.Token ?? CancellationToken.None);
+
+                Ai.RecordAudit(new AiAuditEntry
+                {
+                    Chemical = action.EquipmentName,
+                    Action = action.ActionType == "START" ? "Arranque IA" : "Apagado IA",
+                    Operator = "Operador (Vía Copiloto IA)",
+                    DoseMgL = 0,
+                    Details = $"Orden interactiva de {action.ActionType} ejecutada para {action.EquipmentName}. Motivo: {action.Reason}",
+                    RawWaterConditions = "INSTRUCCIÓN VÍA PROMPT IA"
+                });
+
+                ChatState.AddAssistantMessage($"✅ **[Orden Ejecutada en PLC]:** Se ha transmitido con éxito la orden de **{action.ActionType}** para **{action.EquipmentName}** al PLC Siemens S7-1200.");
+            }
+
+            StatusMessage = $"✅ Acción de control para {action.EquipmentName} ejecutada en el PLC.";
+            IsStatusSuccess = true;
+            await RefreshTelemetryAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error al ejecutar orden en el PLC: {ex.Message}";
+            IsStatusSuccess = false;
+        }
+    }
+
+    private void CancelChatAction(AiProposedAction action)
+    {
+        action.Status = "Cancelado";
+        ChatState.AddAssistantMessage($"ℹ️ **[Orden Cancelada]:** Se ha descartado la instrucción para {action.EquipmentName}. El PLC permanece sin modificaciones.");
+    }
+
+    private void ClearChatHistory()
+    {
+        ChatState.ClearHistory();
+    }
+
+    private async Task SendQuickQueryAsync(string query)
+    {
+        CurrentQuestion = query;
+        await SendMessageAsync();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessageAsync();
+        }
+    }
+
+    private static string GetStatusBadgeClass(string status) => status.ToLowerInvariant() switch
+    {
+        "optimo" => "optimo",
+        "estable" => "estable",
+        "atencion requerida" => "atencion",
+        _ => "critico"
+    };
+
+    private static string FormatMarkdown(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        
+        // Formato básico amigable para HTML
+        var html = System.Net.WebUtility.HtmlEncode(raw);
+        html = html.Replace("\n", "<br/>");
+        
+        // Negrita: **texto**
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
+        // Cursiva: *texto*
+        html = System.Text.RegularExpressions.Regex.Replace(html, @"\*(.+?)\*", "<em>$1</em>");
+        
+        return html;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (cts is not null)
+        {
+            await cts.CancelAsync();
+            cts.Dispose();
+        }
+        timer?.Dispose();
+    }
+}

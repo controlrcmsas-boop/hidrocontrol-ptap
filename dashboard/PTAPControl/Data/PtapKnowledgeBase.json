@@ -1,0 +1,158 @@
+﻿{
+  "PlantInfo": {
+    "Name": "HIDROCONTROL PTAP V2.2",
+    "Type": "Planta de Tratamiento de Agua Potable de Filtración Rápida y Módulos Lamelares",
+    "DesignFlowMinLpm": 5.0,
+    "DesignFlowNominalLpm": 15.0,
+    "DesignFlowMaxLpm": 30.0,
+    "TargetNorm": "Resolución 2115 / Directrices OMS para Agua de Consumo Humano",
+    "QualityTargets": {
+      "TurbidityTreatedMaxNtu": 2.0,
+      "TurbidityTreatedOptimalNtu": 0.5,
+      "PhMin": 6.5,
+      "PhMax": 8.5,
+      "FreeChlorineMinMgL": 0.5,
+      "FreeChlorineMaxMgL": 2.0,
+      "PressureMaxBar": 3.5
+    }
+  },
+  "EquipmentSpecs": [
+    {
+      "Tag": "TK-101",
+      "Name": "Tanque de Agua Cruda / Almacenamiento Inicial",
+      "Type": "Tanque de recepción y amortiguación hidráulica",
+      "CapacityLiters": 5000,
+      "SensorParameters": ["turbidez_agua_cruda", "ph_agua_cruda", "nivel_tanque_cruda"],
+      "Description": "Recibe el agua captada de la fuente superficial o pozo. Permite la amortiguación de fluctuaciones de caudal y medición de calidad inicial."
+    },
+    {
+      "Tag": "EA-101",
+      "Name": "Torre de Aireación y Desgasificación",
+      "Type": "Bandejas perforadas de contacto aire-agua",
+      "Objective": "Transferencia de oxígeno disuelto, volatilización de gases disueltos (CO2 agresivo, H2S) y pre-oxidación de hierro (Fe2+ -> Fe3+) y manganeso (Mn2+ -> Mn4+).",
+      "OperationalNotes": "Mejora el sabor y olor del agua cruda y facilita la posterior precipitación de sales metálicas."
+    },
+    {
+      "Tag": "FH-201",
+      "Name": "Floculador Hidráulico",
+      "Type": "Flujo helicoidal / pantallas deflectoras de gradiente decreciente",
+      "VelocityGradientG": "60 s^-1 inicial a 20 s^-1 final",
+      "RetentionTimeMinutes": 18,
+      "ChemicalInjected": "Sulfato de Aluminio Al2(SO4)3 desde Dosificador B2",
+      "Objective": "Favorecer la colisión entre microflóculos para formar agregados de alta densidad (flóculos pesados) capaces de sedimentar rápidamente.",
+      "OperationalNotes": "Requiere un pH entre 6.5 y 7.8 para una formación óptima de hidróxido de aluminio Al(OH)3 insoluble."
+    },
+    {
+      "Tag": "SC-301",
+      "Name": "Sedimentador Lamelar de Alta Tasa",
+      "Type": "Módulos de placas inclinadas a 60°",
+      "HydraulicSurfaceLoad": "20 a 30 m3/m2/día",
+      "RetentionTimeMinutes": 25,
+      "Objective": "Separación por gravedad de los flóculos formados en FH-201.",
+      "OperationalNotes": "La turbidez del agua decantada debe situarse por debajo de 3.0 NTU antes de ingresar al filtro FC-401. Requiere purga periódica de la tolva de lodos."
+    },
+    {
+      "Tag": "FC-401",
+      "Name": "Filtro Rápido Multimedia y Carbón Activado",
+      "Type": "Lecho mixto: Antracita + Arena Sílice + Grava soporte + Carbón Activado Granular (GAC)",
+      "FiltrationRate": "120 a 180 m3/m2/día",
+      "SensorParameters": ["presion_bomba_principal", "turbidez_agua_tratada"],
+      "Objective": "Retención física de partículas coloidales remanentes y adsorción de compuestos orgánicos disueltos, cloro residual indeseado, olores y sabores.",
+      "BackwashTrigger": "Presión manométrica > 3.0 bar o pérdida de carga diferencial acumulada > 0.8 bar, o tras 72 horas de operación continua."
+    },
+    {
+      "Tag": "TK-501",
+      "Name": "Tanque de Agua Tratada y Contacto de Desinfección",
+      "Type": "Tanque de almacenamiento y distribución",
+      "CapacityLiters": 5000,
+      "SensorParameters": ["turbidez_agua_tratada", "ph_agua_tratada", "nivel_tanque_tratada"],
+      "ChemicalInjected": "Hipoclorito de Sodio (NaOCl) desde Dosificador B3",
+      "ContactTimeMinutes": 20,
+      "Objective": "Garantizar el tiempo de contacto desinfectante (CT) para inactivación bacteriológica y viral, asegurando cloro libre residual en la red de distribución."
+    },
+    {
+      "Tag": "B1",
+      "ControlTarget": "bomba_principal",
+      "Name": "Bomba Principal de Impulsión y Filtración",
+      "PowerKw": 1.5,
+      "NominalFlowLpm": 15.0,
+      "MaxPressureBar": 4.0,
+      "Interlocks": "Apaga automáticamente ante nivel bajo en TK-101 o presión excesiva > 3.5 bar."
+    },
+    {
+      "Tag": "B2",
+      "ControlTarget": "dosificador_sulfato",
+      "Name": "Bomba Dosificadora de Coagulante (Sulfato de Aluminio)",
+      "Type": "Bomba dosificadora electromagnética de precisión",
+      "Reagent": "Sulfato de Aluminio Tipo B al 10% p/v",
+      "DoseRangeMgL": "5.0 a 60.0 mg/L",
+      "FrequencyRangeHz": "10.0 a 60.0 Hz",
+      "CalculationRule": "Dosis (mg/L) = f(Turbidez Cruda, pH, Caudal). A mayor turbidez o caudal, mayor frecuencia de pulso en Hz."
+    },
+    {
+      "Tag": "B3",
+      "ControlTarget": "dosificador_cloro",
+      "Name": "Bomba Dosificadora de Desinfectante (Hipoclorito de Sodio)",
+      "Type": "Bomba dosificadora electromagnética de precisión",
+      "Reagent": "Hipoclorito de Sodio al 5% de cloro activo",
+      "DoseRangeMgL": "0.5 a 3.5 mg/L (Dosis estándar 1.5 a 2.0 mg/L)",
+      "FrequencyRangeHz": "10.0 a 60.0 Hz",
+      "CalculationRule": "Asegurar residual libre entre 0.5 y 2.0 ppm en la salida de TK-501."
+    }
+  ],
+  "StandardOperatingProcedures": [
+    {
+      "Code": "SOP-01",
+      "Title": "Arranque Normal y Puesta en Marcha",
+      "Steps": [
+        "1. Verificar nivel suficiente en tanque de agua cruda TK-101 (> 30%).",
+        "2. Encender bomba dosificadora de coagulante B2 con consigna calculada según turbidez de entrada.",
+        "3. Encender bomba dosificadora de cloro B3.",
+        "4. Arrancar bomba principal B1 y verificar que la presión en FC-401 se mantenga entre 1.8 y 2.5 bar.",
+        "5. Monitorear formación de flóculo en FH-201 y claridad en salida de SC-301."
+      ]
+    },
+    {
+      "Code": "SOP-02",
+      "Title": "Respuesta ante Evento de Lluvia y Alta Turbidez (> 80 NTU)",
+      "Steps": [
+        "1. Detectar incremento rápido de turbidez en agua cruda.",
+        "2. Incrementar inmediatamente la dosificación de Sulfato de Aluminio (B2) a rango de 35 a 55 mg/L.",
+        "3. Si el caudal supera 20 L/min, reducir velocidad para incrementar el tiempo de residencia hidráulica en FH-201 y SC-301.",
+        "4. Monitorear el pH: si desciende de 6.5 por exceso de coagulante ácido, recomendar ajuste alcalinizante.",
+        "5. Programar purga anticipada de la tolva de lodos en SC-301."
+      ]
+    },
+    {
+      "Code": "SOP-03",
+      "Title": "Criterio de Retrolavado del Filtro FC-401",
+      "Steps": [
+        "1. Si la presión de bombeo alcanza >= 3.0 bar o la turbidez tratada supera 1.5 NTU por carrera terminal de filtración:",
+        "2. Detener la bomba dosificadora de sulfato B2.",
+        "3. Ejecutar ciclo de lavado con agua a contracorriente y aire de descolmatación.",
+        "4. Enjuagar y verificar turbidez de salida < 0.5 NTU antes de restablecer flujo a TK-501."
+      ]
+    },
+    {
+      "Code": "SOP-04",
+      "Title": "Parada de Seguridad y Desenergización General",
+      "Steps": [
+        "1. Ejecutar instrucción de STOP_ALL hacia Node-RED / PLC.",
+        "2. Apagar simultáneamente Bomba B1, Dosificador B2 y Dosificador B3.",
+        "3. Dejar el sistema en estado desenergizado seguro ante fugas, sobrepresiones o alarmas críticas."
+      ]
+    }
+  ],
+  "LearnedOperatorRules": [
+    {
+      "Id": "rule-01",
+      "Condition": "Turbidez cruda < 15 NTU y pH entre 7.0 y 7.6",
+      "Action": "Mantener dosificación económica de sulfato en 12 a 16 mg/L (Frecuencia 15-20 Hz)."
+    },
+    {
+      "Id": "rule-02",
+      "Condition": "Presión en bomba B1 > 3.0 bar",
+      "Action": "Alerta de colmatación en filtro FC-401. Advertir al operador sobre necesidad de retrolavado."
+    }
+  ]
+}

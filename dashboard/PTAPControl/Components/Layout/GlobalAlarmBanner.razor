@@ -1,0 +1,81 @@
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject PTAPControl.Services.NodeRedApiClient Api
+
+<div class="global-alarm-banner @(ActiveAlarmCount > 0 ? "active" : "") @(HasCriticalAlarm ? "critical" : "")">
+    <div class="alarm-beacon" aria-hidden="true"></div>
+    <div>
+        <strong>@AlarmBannerTitle</strong>
+        <span>@AlarmBannerText</span>
+    </div>
+    <a href="alarmas">Ver alarmas</a>
+</div>
+
+@code {
+    private int ActiveAlarmCount;
+    private bool HasCriticalAlarm;
+    private string? LatestAlarmMessage;
+    private PeriodicTimer? alarmTimer;
+    private CancellationTokenSource? alarmCts;
+
+    private string AlarmBannerTitle => ActiveAlarmCount == 0
+        ? "Sin alarmas activas"
+        : HasCriticalAlarm ? "Alarma critica activa" : "Alarmas activas";
+
+    private string AlarmBannerText => ActiveAlarmCount == 0
+        ? "Sistema sin eventos activos reportados."
+        : $"{ActiveAlarmCount} activa(s). {LatestAlarmMessage}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        alarmCts = new CancellationTokenSource();
+        await RefreshAlarmsAsync();
+        alarmTimer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        _ = AlarmLoopAsync(alarmCts.Token);
+    }
+
+    private async Task AlarmLoopAsync(CancellationToken cancellationToken)
+    {
+        if (alarmTimer is null) return;
+
+        try
+        {
+            while (await alarmTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshAlarmsAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RefreshAlarmsAsync()
+    {
+        try
+        {
+            var alarms = await Api.GetActiveAlarmsAsync(alarmCts?.Token ?? CancellationToken.None);
+            ActiveAlarmCount = alarms.Count;
+            HasCriticalAlarm = alarms.Any(a => string.Equals(a.Severity, "critical", StringComparison.OrdinalIgnoreCase));
+            LatestAlarmMessage = alarms.FirstOrDefault()?.Message ?? string.Empty;
+        }
+        catch
+        {
+            ActiveAlarmCount = 0;
+            HasCriticalAlarm = false;
+            LatestAlarmMessage = "No se pudo consultar Node-RED.";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (alarmCts is not null)
+        {
+            await alarmCts.CancelAsync();
+            alarmCts.Dispose();
+        }
+
+        alarmTimer?.Dispose();
+    }
+}

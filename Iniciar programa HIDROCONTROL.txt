@@ -1,0 +1,19 @@
+﻿=====================================================
+  INSTRUCCIONES DE INICIO - HIDROCONTROL PTAP V2.1
+=====================================================
+
+1. TERMINAL 1 (Node-RED):
+   node-red
+
+2. TERMINAL 2 (WhatsApp Gateway):
+   cd "C:\Users\Pacho\Desktop\RCMaq\TECNICA\Proyectos\HIDROCONTROL PTAP V2.1\services\whatsapp-gateway"
+   node server.js
+
+3. TERMINAL 3 (Dashboard SCADA):
+   cd "C:\Users\Pacho\Desktop\RCMaq\TECNICA\Proyectos\HIDROCONTROL PTAP V2.1\dashboard\PTAPControl"
+   dotnet run --urls "http://0.0.0.0:5088"
+
+-----------------------------------------------------
+* Dashboard SCADA: http://localhost:5088
+* Vincular WhatsApp por QR: http://localhost:5089/qr
+-----------------------------------------------------

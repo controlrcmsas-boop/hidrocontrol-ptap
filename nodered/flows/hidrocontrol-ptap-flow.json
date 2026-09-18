@@ -1,0 +1,452 @@
+﻿[
+    {
+        "id":  "hidro_tab_001",
+        "type":  "tab",
+        "label":  "HIDROCONTROL PTAP",
+        "disabled":  false,
+        "info":  "Flujo base HIDROCONTROL PTAP: lectura Siemens S7-1200, API REST de telemetria actual y comandos remotos."
+    },
+    {
+        "id":  "s7_endpoint_hidro_001",
+        "type":  "s7 endpoint",
+        "transport":  "iso-on-tcp",
+        "address":  "192.168.1.110",
+        "port":  "102",
+        "rack":  "0",
+        "slot":  "1",
+        "localtsaphi":  "01",
+        "localtsaplo":  "00",
+        "remotetsaphi":  "01",
+        "remotetsaplo":  "00",
+        "connmode":  "rack-slot",
+        "adapter":  "",
+        "busaddr":  "2",
+        "cycletime":  "1000",
+        "timeout":  "5000",
+        "name":  "PLC_HIDROCONTROL",
+        "vartable":  [
+                         {
+                             "addr":  "DB10,X0.0",
+                             "name":  "bomba_principal_estado"
+                         },
+                         {
+                             "addr":  "DB10,X0.1",
+                             "name":  "dosificador_sulfato_estado"
+                         },
+                         {
+                             "addr":  "DB10,X0.2",
+                             "name":  "dosificador_cloro_estado"
+                         },
+                         {
+                             "addr":  "DB10,X0.3",
+                             "name":  "nivel_tanque_agua_cruda"
+                         },
+                         {
+                             "addr":  "DB10,X0.4",
+                             "name":  "modo_remoto_habilitado"
+                         },
+                         {
+                             "addr":  "DB10,X0.5",
+                             "name":  "plc_en_falla"
+                         },
+                         {
+                             "addr":  "DB10,X0.6",
+                             "name":  "comando_rechazado"
+                         },
+                         {
+                             "addr":  "DB10,X0.7",
+                             "name":  "ultimo_comando_aceptado"
+                         },
+                         {
+                             "addr":  "DB10,REAL2",
+                             "name":  "ph_agua_cruda"
+                         },
+                         {
+                             "addr":  "DB10,REAL6",
+                             "name":  "turbidez_agua_cruda"
+                         },
+                         {
+                             "addr":  "DB10,REAL10",
+                             "name":  "conductividad_agua_cruda"
+                         },
+                         {
+                             "addr":  "DB10,REAL14",
+                             "name":  "ph_agua_tratada"
+                         },
+                         {
+                             "addr":  "DB10,REAL18",
+                             "name":  "turbidez_agua_tratada"
+                         },
+                         {
+                             "addr":  "DB10,REAL22",
+                             "name":  "conductividad_agua_tratada"
+                         },
+                         {
+                             "addr":  "DB10,REAL26",
+                             "name":  "caudal_bomba_principal"
+                         },
+                         {
+                             "addr":  "DB10,REAL30",
+                             "name":  "caudal_distribucion"
+                         },
+                         {
+                             "addr":  "DB10,REAL34",
+                             "name":  "presion_bomba_principal"
+                         },
+                         {
+                             "addr":  "DB10,DINT38",
+                             "name":  "watchdog_plc"
+                         },
+                         {
+                             "addr":  "DB11,X0.0",
+                             "name":  "comando_bomba_principal_start"
+                         },
+                         {
+                             "addr":  "DB11,X0.1",
+                             "name":  "comando_bomba_principal_stop"
+                         },
+                         {
+                             "addr":  "DB11,X0.2",
+                             "name":  "comando_dosificador_sulfato_start"
+                         },
+                         {
+                             "addr":  "DB11,X0.3",
+                             "name":  "comando_dosificador_sulfato_stop"
+                         },
+                         {
+                             "addr":  "DB11,X0.4",
+                             "name":  "comando_dosificador_cloro_start"
+                         },
+                         {
+                             "addr":  "DB11,X0.5",
+                             "name":  "comando_dosificador_cloro_stop"
+                         },
+                         {
+                             "addr":  "DB11,X0.6",
+                             "name":  "reset_alarmas"
+                         },
+                         {
+                             "addr":  "DB11,X0.7",
+                             "name":  "watchdog_scada"
+                         },
+                         {
+                             "addr":  "DB11,DINT4",
+                             "name":  "command_sequence"
+                         }
+                     ]
+    },
+    {
+        "id":  "s7_read_db10_001",
+        "type":  "s7 in",
+        "z":  "hidro_tab_001",
+        "endpoint":  "s7_endpoint_hidro_001",
+        "mode":  "all",
+        "variable":  "",
+        "diff":  false,
+        "name":  "Leer DB10 completo",
+        "x":  170,
+        "y":  100,
+        "wires":  [
+                      [
+                          "fn_store_telemetry_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "fn_store_telemetry_001",
+        "type":  "function",
+        "z":  "hidro_tab_001",
+        "name":  "Guardar telemetria actual",
+        "func":  "const values = msg.payload || {};\nconst previous = flow.get(\u0027telemetryCurrent\u0027);\n\nconst telemetry = {\n    timestamp: new Date().toISOString(),\n    plcConnected: true,\n    source: \u0027PLC_HIDROCONTROL\u0027,\n    values\n};\n\nflow.set(\u0027telemetryCurrent\u0027, telemetry);\nflow.set(\u0027plcLastSeen\u0027, Date.now());\n\nmsg.payload = telemetry;\nreturn msg;",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  430,
+        "y":  100,
+        "wires":  [
+                      [
+                          "debug_telemetry_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "debug_telemetry_001",
+        "type":  "debug",
+        "z":  "hidro_tab_001",
+        "name":  "debug telemetria",
+        "active":  true,
+        "tosidebar":  true,
+        "console":  false,
+        "tostatus":  false,
+        "complete":  "payload",
+        "targetType":  "msg",
+        "statusVal":  "",
+        "statusType":  "auto",
+        "x":  700,
+        "y":  100,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_get_current_001",
+        "type":  "http in",
+        "z":  "hidro_tab_001",
+        "name":  "GET telemetry current",
+        "url":  "/api/telemetry/current",
+        "method":  "get",
+        "upload":  false,
+        "swaggerDoc":  "",
+        "x":  170,
+        "y":  220,
+        "wires":  [
+                      [
+                          "fn_get_current_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "fn_get_current_001",
+        "type":  "function",
+        "z":  "hidro_tab_001",
+        "name":  "Responder telemetria actual",
+        "func":  "const telemetry = flow.get(\u0027telemetryCurrent\u0027);\nconst lastSeen = flow.get(\u0027plcLastSeen\u0027);\nconst now = Date.now();\n\nif (!telemetry) {\n    msg.statusCode = 503;\n    msg.payload = {\n        error: \u0027No telemetry available\u0027,\n        plcConnected: false,\n        timestamp: new Date().toISOString()\n    };\n    return msg;\n}\n\nconst stale = !lastSeen || (now - lastSeen \u003e 10000);\nmsg.payload = {\n    ...telemetry,\n    plcConnected: !stale,\n    stale\n};\nreturn msg;",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  440,
+        "y":  220,
+        "wires":  [
+                      [
+                          "http_response_current_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "http_response_current_001",
+        "type":  "http response",
+        "z":  "hidro_tab_001",
+        "name":  "HTTP response",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  700,
+        "y":  220,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_post_command_001",
+        "type":  "http in",
+        "z":  "hidro_tab_001",
+        "name":  "POST control command",
+        "url":  "/api/control/command",
+        "method":  "post",
+        "upload":  false,
+        "swaggerDoc":  "",
+        "x":  170,
+        "y":  340,
+        "wires":  [
+                      [
+                          "json_command_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "json_command_001",
+        "type":  "json",
+        "z":  "hidro_tab_001",
+        "name":  "Parse JSON",
+        "property":  "payload",
+        "action":  "obj",
+        "pretty":  false,
+        "x":  380,
+        "y":  340,
+        "wires":  [
+                      [
+                          "fn_validate_command_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "fn_validate_command_001",
+        "type":  "function",
+        "z":  "hidro_tab_001",
+        "name":  "Validar comando",
+        "func":  "const body = msg.payload || {};\nconst telemetry = flow.get(\u0027telemetryCurrent\u0027);\nconst values = telemetry?.values || {};\n\nconst commandMap = {\n    bomba_principal: {\n        start: \u0027comando_bomba_principal_start\u0027,\n        stop: \u0027comando_bomba_principal_stop\u0027\n    },\n    dosificador_sulfato: {\n        start: \u0027comando_dosificador_sulfato_start\u0027,\n        stop: \u0027comando_dosificador_sulfato_stop\u0027\n    },\n    dosificador_cloro: {\n        start: \u0027comando_dosificador_cloro_start\u0027,\n        stop: \u0027comando_dosificador_cloro_stop\u0027\n    }\n};\n\nconst target = body.target;\nconst command = body.command;\nconst operator = body.operator || \u0027unknown\u0027;\nconst source = body.source || \u0027api\u0027;\n\nif (!commandMap[target] || !commandMap[target][command]) {\n    msg.statusCode = 400;\n    msg.payload = { accepted: false, error: \u0027Invalid target or command\u0027, target, command };\n    return [null, msg];\n}\n\nif (values.modo_remoto_habilitado !== true) {\n    msg.statusCode = 409;\n    msg.payload = { accepted: false, error: \u0027Remote mode is not enabled\u0027, target, command };\n    return [null, msg];\n}\n\nif (values.plc_en_falla === true) {\n    msg.statusCode = 409;\n    msg.payload = { accepted: false, error: \u0027PLC/process is in fault\u0027, target, command };\n    return [null, msg];\n}\n\nconst variable = commandMap[target][command];\nconst seq = (flow.get(\u0027commandSequence\u0027) || 0) + 1;\nflow.set(\u0027commandSequence\u0027, seq);\n\nconst commandLog = {\n    sequence: seq,\n    target,\n    command,\n    variable,\n    operator,\n    source,\n    requestedAt: new Date().toISOString(),\n    status: \u0027accepted\u0027\n};\nflow.set(\u0027lastCommand\u0027, commandLog);\n\nmsg.commandInfo = commandLog;\nmsg.payload = true;\nmsg.variable = variable;\nreturn [msg, null];",
+        "outputs":  2,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  590,
+        "y":  340,
+        "wires":  [
+                      [
+                          "fn_pulse_command_001"
+                      ],
+                      [
+                          "http_response_command_error_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "s7_write_command_001",
+        "type":  "s7 out",
+        "z":  "hidro_tab_001",
+        "endpoint":  "s7_endpoint_hidro_001",
+        "variable":  "",
+        "name":  "Escribir comando PLC",
+        "x":  860,
+        "y":  300,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "fn_prepare_command_response_001",
+        "type":  "function",
+        "z":  "hidro_tab_001",
+        "name":  "Responder comando aceptado",
+        "func":  "const info = msg.commandInfo || {};\nmsg.payload = {\n    accepted: true,\n    sequence: info.sequence,\n    target: info.target,\n    command: info.command,\n    variable: info.variable,\n    message: \u0027Comando validado y enviado al PLC\u0027,\n    timestamp: new Date().toISOString()\n};\nreturn msg;",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  880,
+        "y":  380,
+        "wires":  [
+                      [
+                          "http_response_command_ok_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "http_response_command_ok_001",
+        "type":  "http response",
+        "z":  "hidro_tab_001",
+        "name":  "HTTP response OK",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  1130,
+        "y":  380,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_response_command_error_001",
+        "type":  "http response",
+        "z":  "hidro_tab_001",
+        "name":  "HTTP response error",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  850,
+        "y":  440,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "http_get_status_001",
+        "type":  "http in",
+        "z":  "hidro_tab_001",
+        "name":  "GET system status",
+        "url":  "/api/system/status",
+        "method":  "get",
+        "upload":  false,
+        "swaggerDoc":  "",
+        "x":  160,
+        "y":  520,
+        "wires":  [
+                      [
+                          "fn_system_status_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "fn_system_status_001",
+        "type":  "function",
+        "z":  "hidro_tab_001",
+        "name":  "Responder estado sistema",
+        "func":  "const lastSeen = flow.get(\u0027plcLastSeen\u0027);\nconst telemetry = flow.get(\u0027telemetryCurrent\u0027);\nconst lastCommand = flow.get(\u0027lastCommand\u0027);\nconst now = Date.now();\nconst stale = !lastSeen || (now - lastSeen \u003e 10000);\n\nmsg.payload = {\n    service: \u0027HIDROCONTROL PTAP Node-RED\u0027,\n    timestamp: new Date().toISOString(),\n    plc: {\n        ip: \u0027192.168.1.110\u0027,\n        connected: !stale,\n        lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null,\n        watchdog: telemetry?.values?.watchdog_plc ?? null\n    },\n    lastCommand: lastCommand || null\n};\nreturn msg;",
+        "outputs":  1,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  430,
+        "y":  520,
+        "wires":  [
+                      [
+                          "http_response_status_001"
+                      ]
+                  ]
+    },
+    {
+        "id":  "http_response_status_001",
+        "type":  "http response",
+        "z":  "hidro_tab_001",
+        "name":  "HTTP response status",
+        "statusCode":  "",
+        "headers":  {
+
+                    },
+        "x":  690,
+        "y":  520,
+        "wires":  [
+
+                  ]
+    },
+    {
+        "id":  "fn_pulse_command_001",
+        "type":  "function",
+        "z":  "hidro_tab_001",
+        "name":  "Pulso comando PLC",
+        "func":  "const info = msg.commandInfo || {};\nconst variable = msg.variable;\n\nif (!variable) {\n    msg.statusCode = 500;\n    msg.payload = { accepted: false, error: \u0027No PLC command variable selected\u0027 };\n    return [null, msg];\n}\n\nconst writeTrue = { ...msg, payload: true, variable };\nconst writeFalse = { ...msg, payload: false, variable };\n\nconst response = {\n    ...msg,\n    payload: {\n        accepted: true,\n        sequence: info.sequence,\n        target: info.target,\n        command: info.command,\n        variable: info.variable,\n        message: \u0027Comando validado y enviado al PLC como pulso\u0027,\n        pulseMs: 500,\n        timestamp: new Date().toISOString()\n    }\n};\n\nnode.send([writeTrue, response]);\nsetTimeout(() =\u003e node.send([writeFalse, null]), 500);\nreturn null;",
+        "outputs":  2,
+        "timeout":  0,
+        "noerr":  0,
+        "initialize":  "",
+        "finalize":  "",
+        "libs":  [
+
+                 ],
+        "x":  830,
+        "y":  340,
+        "wires":  [
+                      [
+                          "s7_write_command_001"
+                      ],
+                      [
+                          "http_response_command_ok_001"
+                      ]
+                  ]
+    }
+]

@@ -1,10 +1,10 @@
 @echo off
-title Iniciar HIDROCONTROL PTAP V2.1
+title Iniciar HIDROCONTROL PTAP V2.2
 echo ========================================================
 echo   Iniciando Node-RED, WhatsApp Gateway y Dashboard...
 echo ========================================================
 
-start "Node-RED" cmd /k "node-red"
+start "Node-RED" cmd /k "node-red.cmd"
 timeout /t 3 /nobreak >nul
 
 start "WhatsApp Gateway" cmd /k "cd /d %~dp0services\whatsapp-gateway && node server.js"

@@ -13,13 +13,64 @@
             <p class="eyebrow">HIDROCONTROL PTAP V2.2</p>
             <h1>PTAP Control</h1>
         </div>
+        <div class="mode-selector-strip">
+            <label class="mode-label">Modo Operativo:</label>
+            <div class="mode-buttons-group">
+                <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.SimulatedAuto ? "active auto" : "")" 
+                        @onclick="() => SwitchMode(PtapDataSourceMode.SimulatedAuto)" title="Simulación autónoma continua en la nube (Ideal para demos 24/7)">
+                    🌐 Piloto Auto (Nube)
+                </button>
+                <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.SimulatedManual ? "active manual" : "")" 
+                        @onclick="() => SwitchMode(PtapDataSourceMode.SimulatedManual)" title="Showroom interactivo con inyección de fallas">
+                    🎮 Showroom Demo
+                </button>
+                <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.PhysicalPlc ? "active plc" : "")" 
+                        @onclick="() => SwitchMode(PtapDataSourceMode.PhysicalPlc)" title="Conexión física directa con PLC Siemens S7-1200 en planta">
+                    🏭 Planta Real (PLC)
+                </button>
+            </div>
+        </div>
+
         <div class="system-strip">
             <span class="status-dot @(Telemetry?.PlcConnected == true ? "ok" : "bad")"></span>
-            <span>@(Telemetry?.PlcConnected == true ? "PLC conectado" : "PLC sin datos")</span>
+            <span class="status-text @(Telemetry?.PlcConnected == true ? "connected" : "disconnected")">
+                @(Telemetry?.PlcConnected == true 
+                    ? (Api.Simulation.CurrentMode == PtapDataSourceMode.PhysicalPlc ? "PLC FÍSICO CONECTADO (192.168.1.110)" : "SIMULADOR EN LÍNEA (24/7)") 
+                    : "⚠️ PLC DESCONECTADO (SEÑAL PERDIDA)")
+            </span>
             <span>Watchdog: @FormatNumber("watchdog_plc", "0")</span>
             <span>@LastRefreshText</span>
         </div>
     </header>
+
+    @if (Api.Simulation.CurrentMode == PtapDataSourceMode.SimulatedManual)
+    {
+        <div class="showroom-banner">
+            <div class="showroom-info">
+                <strong>🕹️ Modo Showroom Interactivo:</strong> Prueba escenarios de falla en tiempo real para demostraciones comerciales.
+            </div>
+            <div class="showroom-actions">
+                <button type="button" class="btn-scenario @(Api.Simulation.ActiveScenario == "normal" ? "active" : "")" @onclick="@(() => SetScenario("normal"))">☀️ Normal</button>
+                <button type="button" class="btn-scenario rain @(Api.Simulation.ActiveScenario == "rain" ? "active" : "")" @onclick="@(() => SetScenario("rain"))">🌧️ Lluvia (Turbidez 85 NTU)</button>
+                <button type="button" class="btn-scenario warn @(Api.Simulation.ActiveScenario == "pump_fault" ? "active" : "")" @onclick="@(() => SetScenario("pump_fault"))">⚠️ Falla Bomba B1</button>
+                <button type="button" class="btn-scenario danger @(Api.Simulation.ActiveScenario == "chlorine_fault" ? "active" : "")" @onclick="@(() => SetScenario("chlorine_fault"))">🧪 Falla Cloro</button>
+                <button type="button" class="btn-scenario disconnect @(Api.Simulation.SimulatePlcDisconnected ? "active" : "")" @onclick="ToggleSimulatedDisconnect">
+                    @(Api.Simulation.SimulatePlcDisconnected ? "🔌 Reconectar PLC" : "⚡ Simular Cable PLC Desconectado")
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (Telemetry?.PlcConnected == false)
+    {
+        <div class="plc-lost-alert-banner">
+            <span class="alert-icon">🚨</span>
+            <div class="alert-body">
+                <strong>ALERTA DE PROCESO: ENLACE CON EL AUTÓMATA INTERRUMPIDO</strong>
+                <p>No se recibe telemetría del PLC Siemens S7-1200 ni del motor de adquisición. Los mandos de control están bloqueados por seguridad física de la planta.</p>
+            </div>
+        </div>
+    }
 
     <div class="home-alarm-slot">
         <GlobalAlarmBanner />
@@ -205,6 +256,27 @@
         }
     }
 
+    private async Task SwitchMode(PtapDataSourceMode mode)
+    {
+        Api.Simulation.SetMode(mode);
+        if (mode == PtapDataSourceMode.SimulatedAuto)
+        {
+            Api.Simulation.SimulatePlcDisconnected = false;
+            Api.Simulation.SetScenario("normal");
+        }
+        await RefreshAsync();
+    }
+
+    private void SetScenario(string scenario)
+    {
+        Api.Simulation.SetScenario(scenario);
+    }
+
+    private void ToggleSimulatedDisconnect()
+    {
+        Api.Simulation.SimulatePlcDisconnected = !Api.Simulation.SimulatePlcDisconnected;
+    }
+
     private async Task RefreshAsync()
     {
         try
@@ -214,7 +286,7 @@
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"No se pudo leer Node-RED: {ex.Message}";
+            ErrorMessage = $"Error de lectura: {ex.Message}";
         }
     }
 

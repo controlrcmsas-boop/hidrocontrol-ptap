@@ -1,3 +1,9 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using PTAPControl.Data
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+
 <div class="nav-shell">
     <a class="brand" href="">
         <span>H</span>
@@ -5,11 +11,59 @@
     </a>
 
     <nav>
-        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">PTAP Control</NavLink>
-        <NavLink class="nav-link" href="analisis-ia">Análisis IA <span class="ai-nav-pill">PRO</span></NavLink>
-        <NavLink class="nav-link" href="historicos">Historicos</NavLink>
-        <NavLink class="nav-link" href="alarmas">Alarmas</NavLink>
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">🏭 PTAP Control</NavLink>
+        <NavLink class="nav-link" href="analisis-ia">🤖 Análisis IA <span class="ai-nav-pill">PRO</span></NavLink>
+        <NavLink class="nav-link" href="historicos">📊 Históricos</NavLink>
+        <NavLink class="nav-link" href="alarmas">🔔 Alarmas</NavLink>
         <NavLink class="nav-link" href="simulador">🎮 Simulador PLC</NavLink>
-        <NavLink class="nav-link" href="configuracion">Configuracion</NavLink>
+        <NavLink class="nav-link" href="configuracion">⚙️ Configuracion</NavLink>
+
+        <AuthorizeView Roles="Administrador">
+            <Authorized>
+                <hr class="nav-divider" />
+                <NavLink class="nav-link nav-link-admin" href="admin/users">👥 Usuarios</NavLink>
+            </Authorized>
+        </AuthorizeView>
     </nav>
+
+    <!-- Info del usuario autenticado -->
+    <div class="nav-user-section">
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-user-info">
+                    <div class="nav-user-avatar">@(_userName?.FirstOrDefault() ?? '?')</div>
+                    <div class="nav-user-details">
+                        <span class="nav-user-name">@_userName</span>
+                        <span class="nav-user-role">@_userRole</span>
+                    </div>
+                </div>
+                <a class="nav-logout" href="/logout">🚪 Cerrar sesión</a>
+            </Authorized>
+            <NotAuthorized>
+                <a class="nav-link" href="/login">🔑 Iniciar sesión</a>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
 </div>
+
+@code {
+    private string? _userName;
+    private string? _userRole;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            _userName = user.FindFirst("FullName")?.Value
+                        ?? user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                        ?? user.Identity.Name;
+
+            _userRole = user.IsInRole("Administrador") ? "Administrador"
+                      : user.IsInRole("Operador") ? "Operador"
+                      : "Demo";
+        }
+    }
+}

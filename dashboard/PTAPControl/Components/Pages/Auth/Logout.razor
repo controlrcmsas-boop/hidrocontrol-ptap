@@ -1,0 +1,13 @@
+@page "/logout"
+@using Microsoft.AspNetCore.Identity
+@using PTAPControl.Data
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Nav
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await SignInManager.SignOutAsync();
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+}

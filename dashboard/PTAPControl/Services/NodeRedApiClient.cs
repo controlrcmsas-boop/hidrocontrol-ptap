@@ -3,10 +3,18 @@ using PTAPControl.Models;
 
 namespace PTAPControl.Services;
 
-public sealed class NodeRedApiClient(HttpClient http)
+public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simulationEngine)
 {
+    public PtapSimulationEngine Simulation => simulationEngine;
+
     public async Task<TelemetryResponse?> GetCurrentTelemetryAsync(CancellationToken cancellationToken = default)
     {
+        // Si estamos en modo de simulación (automático o manual), respondemos desde el motor nativo en memoria
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.GenerateTelemetryStep();
+        }
+
         try
         {
             var response = await http.GetAsync("api/telemetry/current", cancellationToken);
@@ -22,10 +30,21 @@ public sealed class NodeRedApiClient(HttpClient http)
         {
             return new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
         }
+        catch
+        {
+            // Si el PLC/Node-RED físico no responde, reportamos desconexión limpia
+            return new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
+        }
     }
 
     public async Task<CommandResponse?> SendCommandAsync(string target, string command, CancellationToken cancellationToken = default)
     {
+        // Si estamos en modo de simulación, ejecutamos directamente en el motor nativo
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.ExecuteCommand(target, command);
+        }
+
         var request = new CommandRequest
         {
             Target = target,
@@ -47,18 +66,54 @@ public sealed class NodeRedApiClient(HttpClient http)
 
     public async Task<List<QualityHistoryPoint>> GetQualityHistoryAsync(string tag, int limit = 100, CancellationToken cancellationToken = default)
     {
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.GetQualityHistory(tag, limit);
+        }
+
         var url = $"api/telemetry/quality-history?tag={Uri.EscapeDataString(tag)}&limit={limit}";
-        return await http.GetFromJsonAsync<List<QualityHistoryPoint>>(url, cancellationToken) ?? [];
+        try
+        {
+            return await http.GetFromJsonAsync<List<QualityHistoryPoint>>(url, cancellationToken) ?? [];
+        }
+        catch
+        {
+            return simulationEngine.GetQualityHistory(tag, limit);
+        }
     }
 
     public async Task<List<AlarmEvent>> GetActiveAlarmsAsync(CancellationToken cancellationToken = default)
     {
-        return await http.GetFromJsonAsync<List<AlarmEvent>>("api/alarms/active", cancellationToken) ?? [];
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.GetActiveAlarms();
+        }
+
+        try
+        {
+            return await http.GetFromJsonAsync<List<AlarmEvent>>("api/alarms/active", cancellationToken) ?? [];
+        }
+        catch
+        {
+            return simulationEngine.GetActiveAlarms();
+        }
     }
 
     public async Task<List<AlarmEvent>> GetAlarmHistoryAsync(int limit = 100, CancellationToken cancellationToken = default)
     {
-        return await http.GetFromJsonAsync<List<AlarmEvent>>($"api/alarms/history?limit={limit}", cancellationToken) ?? [];
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.GetActiveAlarms();
+        }
+
+        try
+        {
+            return await http.GetFromJsonAsync<List<AlarmEvent>>($"api/alarms/history?limit={limit}", cancellationToken) ?? [];
+        }
+        catch
+        {
+            return simulationEngine.GetActiveAlarms();
+        }
     }
 
     public async Task<List<AlarmLimit>> GetAlarmLimitsAsync(CancellationToken cancellationToken = default)
@@ -118,42 +173,46 @@ public sealed class NodeRedApiClient(HttpClient http)
 
     public async Task<SimulatorStateDto?> GetSimulatorStateAsync(CancellationToken cancellationToken = default)
     {
-        try
+        // Si el motor nativo está disponible, retornamos directamente su estado
+        return await Task.FromResult(new SimulatorStateDto
         {
-            return await http.GetFromJsonAsync<SimulatorStateDto>("api/simulator/state", cancellationToken);
-        }
-        catch
-        {
-            return null;
-        }
+            PhCrudaBase = simulationEngine.PhCrudaBase,
+            TurbidezCrudaBase = simulationEngine.TurbidezCrudaBase,
+            ConductividadCrudaBase = simulationEngine.ConductividadCrudaBase,
+            PresionB1Base = simulationEngine.PresionB1Base,
+            CaudalB1Base = simulationEngine.CaudalB1Base,
+            BombaPrincipalEstado = simulationEngine.BombaPrincipalEstado,
+            DosificadorSulfatoEstado = simulationEngine.DosificadorSulfatoEstado,
+            DosificadorCloroEstado = simulationEngine.DosificadorCloroEstado,
+            NivelTanqueAguaCruda = simulationEngine.NivelTanqueAguaCruda,
+            ModoRemotoHabilitado = simulationEngine.ModoRemotoHabilitado,
+            PlcEnFalla = simulationEngine.PlcEnFalla,
+            Scenario = simulationEngine.ActiveScenario
+        });
     }
 
     public async Task<SimulatorStateDto?> UpdateSimulatorStateAsync(SimulatorStateDto state, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var response = await http.PostAsJsonAsync("api/simulator/state", state, cancellationToken);
-            if (!response.IsSuccessStatusCode) return null;
-            var res = await response.Content.ReadFromJsonAsync<SimulatorUpdateResponse>(cancellationToken);
-            return res?.State;
-        }
-        catch
-        {
-            return null;
-        }
+        // Actualizamos directamente en el motor en memoria
+        simulationEngine.PhCrudaBase = state.PhCrudaBase;
+        simulationEngine.TurbidezCrudaBase = state.TurbidezCrudaBase;
+        simulationEngine.ConductividadCrudaBase = state.ConductividadCrudaBase;
+        simulationEngine.PresionB1Base = state.PresionB1Base;
+        simulationEngine.CaudalB1Base = state.CaudalB1Base;
+        simulationEngine.BombaPrincipalEstado = state.BombaPrincipalEstado;
+        simulationEngine.DosificadorSulfatoEstado = state.DosificadorSulfatoEstado;
+        simulationEngine.DosificadorCloroEstado = state.DosificadorCloroEstado;
+        simulationEngine.NivelTanqueAguaCruda = state.NivelTanqueAguaCruda;
+        simulationEngine.ModoRemotoHabilitado = state.ModoRemotoHabilitado;
+        simulationEngine.PlcEnFalla = state.PlcEnFalla;
+
+        return await GetSimulatorStateAsync(cancellationToken);
     }
 
     public async Task<bool> SetSimulatorScenarioAsync(string scenario, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var response = await http.GetAsync($"api/scenario/{scenario}", cancellationToken);
-            return response.IsSuccessStatusCode;
-        }
-        catch
-        {
-            return false;
-        }
+        simulationEngine.SetScenario(scenario);
+        return await Task.FromResult(true);
     }
 }
 

@@ -1,0 +1,216 @@
+@page "/admin/users"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using PTAPControl.Data
+@using PTAPControl.Services
+@attribute [Authorize(Roles = "Administrador")]
+@inject UserManager<ApplicationUser> UserManager
+@inject ILogger<AdminUsers> Logger
+
+<PageTitle>Gestión de Usuarios — HIDROCONTROL PTAP</PageTitle>
+
+<div class="admin-users-page">
+    <div class="admin-header">
+        <h2>👥 Gestión de Usuarios</h2>
+        <div class="admin-stats">
+            <span class="stat-badge stat-pending">⏳ @_users.Count(u => u.ApprovalStatus == ApprovalStatus.Pending) Pendientes</span>
+            <span class="stat-badge stat-approved">✅ @_users.Count(u => u.ApprovalStatus == ApprovalStatus.Approved) Aprobados</span>
+            <span class="stat-badge stat-rejected">❌ @_users.Count(u => u.ApprovalStatus == ApprovalStatus.Rejected) Rechazados</span>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="auth-alert @(_isError ? "auth-alert-error" : "auth-alert-success")">
+            @_message
+        </div>
+    }
+
+    <!-- Filtros -->
+    <div class="admin-filters">
+        <button class="filter-btn @(_filter == "all" ? "active" : "")" @onclick='() => _filter = "all"'>Todos</button>
+        <button class="filter-btn @(_filter == "pending" ? "active" : "")" @onclick='() => _filter = "pending"'>Pendientes</button>
+        <button class="filter-btn @(_filter == "approved" ? "active" : "")" @onclick='() => _filter = "approved"'>Aprobados</button>
+        <button class="filter-btn @(_filter == "rejected" ? "active" : "")" @onclick='() => _filter = "rejected"'>Rechazados</button>
+    </div>
+
+    <!-- Tabla de usuarios -->
+    <div class="users-table-wrapper">
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Empresa</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th>Registro</th>
+                    <th>Último acceso</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in FilteredUsers)
+                {
+                    <tr class="user-row @GetRowClass(user.ApprovalStatus)">
+                        <td>
+                            <div class="user-info">
+                                <div class="user-avatar">@(user.FullName?.FirstOrDefault() ?? '?')</div>
+                                <div>
+                                    <strong>@user.FullName</strong>
+                                    <small>@user.Email</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>@(user.Company ?? "—")</td>
+                        <td>
+                            <select class="role-select" value="@(_roles.GetValueOrDefault(user.Id, "Demo"))"
+                                    @onchange="e => ChangeRole(user.Id, e.Value?.ToString())">
+                                @foreach (var role in AuthSeedService.Roles)
+                                {
+                                    <option value="@role">@role</option>
+                                }
+                            </select>
+                        </td>
+                        <td>
+                            <span class="status-badge @GetStatusClass(user.ApprovalStatus)">
+                                @GetStatusLabel(user.ApprovalStatus)
+                            </span>
+                        </td>
+                        <td><small>@user.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small></td>
+                        <td><small>@(user.LastLoginAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</small></td>
+                        <td>
+                            <div class="action-btns">
+                                @if (user.ApprovalStatus != ApprovalStatus.Approved)
+                                {
+                                    <button class="btn-action btn-approve" @onclick="() => ApproveUser(user.Id)" title="Aprobar">✅</button>
+                                }
+                                @if (user.ApprovalStatus != ApprovalStatus.Rejected)
+                                {
+                                    <button class="btn-action btn-reject" @onclick="() => RejectUser(user.Id)" title="Rechazar">❌</button>
+                                }
+                                <button class="btn-action btn-delete" @onclick="() => DeleteUser(user.Id)" title="Eliminar">🗑️</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!FilteredUsers.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="empty-row">No hay usuarios en esta categoría.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private List<ApplicationUser> _users = [];
+    private Dictionary<string, string> _roles = [];
+    private string _filter = "all";
+    private string? _message;
+    private bool _isError;
+
+    private IEnumerable<ApplicationUser> FilteredUsers => _filter switch
+    {
+        "pending"  => _users.Where(u => u.ApprovalStatus == ApprovalStatus.Pending),
+        "approved" => _users.Where(u => u.ApprovalStatus == ApprovalStatus.Approved),
+        "rejected" => _users.Where(u => u.ApprovalStatus == ApprovalStatus.Rejected),
+        _          => _users
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        _users = UserManager.Users.OrderByDescending(u => u.CreatedAt).ToList();
+        _roles = [];
+        foreach (var user in _users)
+        {
+            var userRoles = await UserManager.GetRolesAsync(user);
+            _roles[user.Id] = userRoles.FirstOrDefault() ?? "Demo";
+        }
+    }
+
+    private async Task ApproveUser(string userId)
+    {
+        var user = _users.FirstOrDefault(u => u.Id == userId);
+        if (user is null) return;
+
+        user.ApprovalStatus = ApprovalStatus.Approved;
+        user.ApprovedAt = DateTime.UtcNow;
+        var result = await UserManager.UpdateAsync(user);
+        ShowMessage(result.Succeeded ? $"✅ {user.FullName} aprobado." : "Error al aprobar usuario.", !result.Succeeded);
+    }
+
+    private async Task RejectUser(string userId)
+    {
+        var user = _users.FirstOrDefault(u => u.Id == userId);
+        if (user is null) return;
+
+        user.ApprovalStatus = ApprovalStatus.Rejected;
+        var result = await UserManager.UpdateAsync(user);
+        ShowMessage(result.Succeeded ? $"❌ {user.FullName} rechazado." : "Error al rechazar usuario.", !result.Succeeded);
+    }
+
+    private async Task DeleteUser(string userId)
+    {
+        var user = _users.FirstOrDefault(u => u.Id == userId);
+        if (user is null) return;
+
+        var result = await UserManager.DeleteAsync(user);
+        if (result.Succeeded)
+        {
+            _users.Remove(user);
+            ShowMessage($"🗑️ {user.FullName} eliminado.", false);
+        }
+    }
+
+    private async Task ChangeRole(string userId, string? newRole)
+    {
+        if (string.IsNullOrEmpty(newRole)) return;
+        var user = _users.FirstOrDefault(u => u.Id == userId);
+        if (user is null) return;
+
+        var currentRoles = await UserManager.GetRolesAsync(user);
+        await UserManager.RemoveFromRolesAsync(user, currentRoles);
+        await UserManager.AddToRoleAsync(user, newRole);
+        _roles[userId] = newRole;
+        ShowMessage($"Rol de {user.FullName} cambiado a {newRole}.", false);
+    }
+
+    private void ShowMessage(string msg, bool isError)
+    {
+        _message = msg;
+        _isError = isError;
+        StateHasChanged();
+        _ = Task.Delay(4000).ContinueWith(_ => { _message = null; InvokeAsync(StateHasChanged); });
+    }
+
+    private static string GetRowClass(ApprovalStatus s) => s switch
+    {
+        ApprovalStatus.Pending  => "row-pending",
+        ApprovalStatus.Approved => "row-approved",
+        ApprovalStatus.Rejected => "row-rejected",
+        _                       => ""
+    };
+
+    private static string GetStatusClass(ApprovalStatus s) => s switch
+    {
+        ApprovalStatus.Pending  => "badge-pending",
+        ApprovalStatus.Approved => "badge-approved",
+        ApprovalStatus.Rejected => "badge-rejected",
+        _                       => ""
+    };
+
+    private static string GetStatusLabel(ApprovalStatus s) => s switch
+    {
+        ApprovalStatus.Pending  => "⏳ Pendiente",
+        ApprovalStatus.Approved => "✅ Aprobado",
+        ApprovalStatus.Rejected => "❌ Rechazado",
+        _                       => "?"
+    };
+}

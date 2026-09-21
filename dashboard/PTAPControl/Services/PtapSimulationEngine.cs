@@ -350,4 +350,246 @@ public sealed class PtapSimulationEngine
         double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
         return mean + standardDeviation * randStdNormal;
     }
+
+    private readonly List<AlarmLimit> _inMemoryAlarmLimits = new()
+    {
+        new AlarmLimit
+        {
+            Id = 1,
+            TagId = "ph_agua_cruda",
+            NombreVisible = "pH Agua Cruda",
+            AlarmType = "range",
+            Enabled = true,
+            Severity = "high",
+            LimitLow = 6.5m,
+            LimitHigh = 8.5m,
+            Unit = "pH",
+            Message = "pH de agua cruda fuera de límite normativo (6.5 - 8.5)",
+            TechnicalNote = "Límites estándar según Resolución 2115 / 2007",
+            UpdatedAt = DateTimeOffset.UtcNow
+        },
+        new AlarmLimit
+        {
+            Id = 2,
+            TagId = "ph_agua_tratada",
+            NombreVisible = "pH Agua Tratada",
+            AlarmType = "range",
+            Enabled = true,
+            Severity = "high",
+            LimitLow = 6.5m,
+            LimitHigh = 8.5m,
+            Unit = "pH",
+            Message = "pH de agua tratada fuera de rango óptimo",
+            TechnicalNote = "Rango de potabilización para distribución",
+            UpdatedAt = DateTimeOffset.UtcNow
+        },
+        new AlarmLimit
+        {
+            Id = 3,
+            TagId = "turbidez_agua_cruda",
+            NombreVisible = "Turbidez Agua Cruda",
+            AlarmType = "high",
+            Enabled = true,
+            Severity = "medium",
+            LimitHigh = 20.0m,
+            Unit = "NTU",
+            Message = "Turbidez de agua cruda elevada en captación",
+            TechnicalNote = "Alerta para ajuste preventivo de coagulante",
+            UpdatedAt = DateTimeOffset.UtcNow
+        },
+        new AlarmLimit
+        {
+            Id = 4,
+            TagId = "turbidez_agua_tratada",
+            NombreVisible = "Turbidez Agua Tratada",
+            AlarmType = "high",
+            Enabled = true,
+            Severity = "high",
+            LimitHigh = 2.0m,
+            Unit = "NTU",
+            Message = "Turbidez de agua tratada excede el límite máximo admisible",
+            TechnicalNote = "Norma sanitaria máxima 2.0 NTU (óptimo < 0.5 NTU)",
+            UpdatedAt = DateTimeOffset.UtcNow
+        },
+        new AlarmLimit
+        {
+            Id = 5,
+            TagId = "cloro_residual",
+            NombreVisible = "Cloro Residual",
+            AlarmType = "range",
+            Enabled = true,
+            Severity = "high",
+            LimitLow = 0.3m,
+            LimitHigh = 2.0m,
+            Unit = "mg/L",
+            Message = "Cloro residual fuera de rango seguro de desinfección",
+            TechnicalNote = "Rango normativo red distribución 0.3 a 2.0 mg/L",
+            UpdatedAt = DateTimeOffset.UtcNow
+        },
+        new AlarmLimit
+        {
+            Id = 6,
+            TagId = "bomba_principal_estado",
+            NombreVisible = "Bomba Principal B1",
+            AlarmType = "bool_equals",
+            Enabled = true,
+            Severity = "medium",
+            BoolAlarmValue = false,
+            Unit = null,
+            Message = "Bomba principal de captación detenida / fuera de servicio",
+            TechnicalNote = "Disparo por fallo de marcha o paro no programado",
+            UpdatedAt = DateTimeOffset.UtcNow
+        },
+        new AlarmLimit
+        {
+            Id = 7,
+            TagId = "nivel_tanque_agua_cruda",
+            NombreVisible = "Nivel Tanque Agua Cruda",
+            AlarmType = "bool_equals",
+            Enabled = true,
+            Severity = "medium",
+            BoolAlarmValue = true,
+            Unit = null,
+            Message = "Tanque de agua cruda en nivel alto / alerta de rebose",
+            TechnicalNote = "Disparado por flotador o sensor de nivel S1",
+            UpdatedAt = DateTimeOffset.UtcNow
+        }
+    };
+
+    private readonly List<NotificationEmail> _inMemoryEmails = new()
+    {
+        new NotificationEmail { Id = 1, Email = "operaciones@potenzia.app", Name = "Operaciones PTAP", Enabled = true },
+        new NotificationEmail { Id = 2, Email = "calidad@potenzia.app", Name = "Control de Calidad", Enabled = true }
+    };
+
+    private readonly List<NotificationWhatsApp> _inMemoryWhatsApp = new()
+    {
+        new NotificationWhatsApp { RawId = 1L, PhoneNumber = "+573001234567", Name = "Operador Turno PTAP", Enabled = true },
+        new NotificationWhatsApp { RawId = 2L, PhoneNumber = "+573109876543", Name = "Supervisor de Planta", Enabled = true }
+    };
+
+    public List<AlarmLimit> GetAlarmLimits()
+    {
+        lock (_sync)
+        {
+            return _inMemoryAlarmLimits.Select(l => new AlarmLimit
+            {
+                Id = l.Id,
+                TagId = l.TagId,
+                NombreVisible = l.NombreVisible,
+                AlarmType = l.AlarmType,
+                Enabled = l.Enabled,
+                Severity = l.Severity,
+                LimitLow = l.LimitLow,
+                LimitHigh = l.LimitHigh,
+                BoolAlarmValue = l.BoolAlarmValue,
+                Unit = l.Unit,
+                Message = l.Message,
+                TechnicalNote = l.TechnicalNote,
+                UpdatedAt = l.UpdatedAt
+            }).ToList();
+        }
+    }
+
+    public AlarmLimit UpdateAlarmLimit(AlarmLimit limit)
+    {
+        lock (_sync)
+        {
+            var existing = _inMemoryAlarmLimits.FirstOrDefault(x => x.Id == limit.Id || (x.TagId == limit.TagId && x.AlarmType == limit.AlarmType));
+            if (existing != null)
+            {
+                existing.Enabled = limit.Enabled;
+                existing.Severity = limit.Severity;
+                existing.LimitLow = limit.LimitLow;
+                existing.LimitHigh = limit.LimitHigh;
+                existing.BoolAlarmValue = limit.BoolAlarmValue;
+                existing.Message = limit.Message;
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+                return existing;
+            }
+
+            if (limit.Id <= 0)
+            {
+                limit.Id = _inMemoryAlarmLimits.Count > 0 ? _inMemoryAlarmLimits.Max(x => x.Id) + 1 : 1;
+            }
+            limit.UpdatedAt = DateTimeOffset.UtcNow;
+            _inMemoryAlarmLimits.Add(limit);
+            return limit;
+        }
+    }
+
+    public List<NotificationEmail> GetNotificationEmails()
+    {
+        lock (_sync)
+        {
+            return _inMemoryEmails.Select(e => new NotificationEmail
+            {
+                Id = e.Id,
+                Email = e.Email,
+                Name = e.Name,
+                Enabled = e.Enabled,
+                CreatedAt = e.CreatedAt
+            }).ToList();
+        }
+    }
+
+    public NotificationEmail AddNotificationEmail(string email, string? name)
+    {
+        lock (_sync)
+        {
+            var newId = _inMemoryEmails.Count > 0 ? _inMemoryEmails.Max(x => x.Id) + 1 : 1;
+            var item = new NotificationEmail
+            {
+                Id = newId,
+                Email = email,
+                Name = name,
+                Enabled = true,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            _inMemoryEmails.Insert(0, item);
+            return item;
+        }
+    }
+
+    public List<NotificationWhatsApp> GetNotificationWhatsApp()
+    {
+        lock (_sync)
+        {
+            return _inMemoryWhatsApp.Select(w => new NotificationWhatsApp
+            {
+                RawId = w.RawId,
+                PhoneNumber = w.PhoneNumber,
+                Name = w.Name,
+                ApiKey = w.ApiKey,
+                Enabled = w.Enabled,
+                RecordedAt = w.RecordedAt
+            }).ToList();
+        }
+    }
+
+    public NotificationWhatsApp AddNotificationWhatsApp(string phone, string? name)
+    {
+        lock (_sync)
+        {
+            var newId = _inMemoryWhatsApp.Count > 0 ? _inMemoryWhatsApp.Max(x => x.Id) + 1 : 1;
+            var item = new NotificationWhatsApp
+            {
+                RawId = newId,
+                PhoneNumber = phone,
+                Name = name,
+                Enabled = true,
+                RecordedAt = DateTime.UtcNow
+            };
+            _inMemoryWhatsApp.Insert(0, item);
+            return item;
+        }
+    }
+
+    public bool DeleteNotificationWhatsApp(long id)
+    {
+        lock (_sync)
+        {
+            return _inMemoryWhatsApp.RemoveAll(x => x.Id == id) > 0;
+        }
+    }
 }

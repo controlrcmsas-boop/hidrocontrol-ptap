@@ -137,7 +137,8 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseHttpsRedirection();
+// Reverse proxy (Cloudflare) maneja la terminación SSL
+// app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseStatusCodePagesWithReExecute("/not-found");
 app.UseCors("PtapCorsPolicy");

@@ -164,9 +164,9 @@
                     <button type="button" class="refresh-button" style="padding: 6px 12px; font-size: 0.85rem;" @onclick="SendTestWhatsAppAsync">
                         🧪 Enviar prueba
                     </button>
-                    <a href="http://localhost:5089/qr" target="_blank" class="refresh-button" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.85rem; background: rgba(37, 211, 102, 0.18); border-color: rgba(37, 211, 102, 0.4); color: #25d366;">
+                    <button type="button" class="refresh-button" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.85rem; background: rgba(37, 211, 102, 0.18); border-color: rgba(37, 211, 102, 0.4); color: #25d366;" @onclick="OpenQrInfo">
                         📲 Vincular QR Emisor
-                    </a>
+                    </button>
                 </div>
             </div>
 
@@ -403,6 +403,11 @@
         }
     }
 
+    private void OpenQrInfo()
+    {
+        StatusMessage = "ℹ️ La vinculación física del emisor WhatsApp se gestiona en la pasarela edge de planta. En la nube, las alertas críticas se procesan y emulan autónomamente.";
+    }
+
     private async Task SendTestWhatsAppAsync()
     {
         try
@@ -410,8 +415,8 @@
             StatusMessage = "Enviando mensaje de prueba a los números registrados...";
             var success = await Api.SendTestWhatsAppAsync();
             StatusMessage = success
-                ? "Mensaje de prueba de WhatsApp despachado correctamente."
-                : "No se pudo despachar la prueba. Asegúrese de que la pasarela de WhatsApp esté iniciada y vinculada (http://localhost:5089/qr).";
+                ? "✓ Mensaje de prueba de WhatsApp despachado correctamente (canal de alertas activo)."
+                : "No se pudo despachar la prueba de WhatsApp. Verifique la configuración de destinatarios.";
         }
         catch (Exception ex)
         {

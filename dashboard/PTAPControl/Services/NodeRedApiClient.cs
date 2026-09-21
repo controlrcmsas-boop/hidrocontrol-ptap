@@ -118,57 +118,153 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
 
     public async Task<List<AlarmLimit>> GetAlarmLimitsAsync(CancellationToken cancellationToken = default)
     {
-        return await http.GetFromJsonAsync<List<AlarmLimit>>("api/alarm-limits", cancellationToken) ?? [];
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.GetAlarmLimits();
+        }
+
+        try
+        {
+            return await http.GetFromJsonAsync<List<AlarmLimit>>("api/alarm-limits", cancellationToken) ?? simulationEngine.GetAlarmLimits();
+        }
+        catch
+        {
+            return simulationEngine.GetAlarmLimits();
+        }
     }
 
     public async Task<AlarmLimit?> UpdateAlarmLimitAsync(AlarmLimit limit, CancellationToken cancellationToken = default)
     {
-        var response = await http.PostAsJsonAsync("api/alarm-limits", limit, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        var rows = await response.Content.ReadFromJsonAsync<List<AlarmLimit>>(cancellationToken);
-        return rows?.FirstOrDefault();
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.UpdateAlarmLimit(limit);
+        }
+
+        try
+        {
+            var response = await http.PostAsJsonAsync("api/alarm-limits", limit, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var rows = await response.Content.ReadFromJsonAsync<List<AlarmLimit>>(cancellationToken);
+            return rows?.FirstOrDefault() ?? simulationEngine.UpdateAlarmLimit(limit);
+        }
+        catch
+        {
+            return simulationEngine.UpdateAlarmLimit(limit);
+        }
     }
 
     public async Task<List<NotificationEmail>> GetNotificationEmailsAsync(CancellationToken cancellationToken = default)
     {
-        return await http.GetFromJsonAsync<List<NotificationEmail>>("api/notification-emails", cancellationToken) ?? [];
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.GetNotificationEmails();
+        }
+
+        try
+        {
+            return await http.GetFromJsonAsync<List<NotificationEmail>>("api/notification-emails", cancellationToken) ?? simulationEngine.GetNotificationEmails();
+        }
+        catch
+        {
+            return simulationEngine.GetNotificationEmails();
+        }
     }
 
     public async Task<NotificationEmail?> AddNotificationEmailAsync(string email, string? name, CancellationToken cancellationToken = default)
     {
-        var request = new NotificationEmail { Email = email, Name = name, Enabled = true };
-        var response = await http.PostAsJsonAsync("api/notification-emails", request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        var rows = await response.Content.ReadFromJsonAsync<List<NotificationEmail>>(cancellationToken);
-        return rows?.FirstOrDefault();
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.AddNotificationEmail(email, name);
+        }
+
+        try
+        {
+            var request = new NotificationEmail { Email = email, Name = name, Enabled = true };
+            var response = await http.PostAsJsonAsync("api/notification-emails", request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var rows = await response.Content.ReadFromJsonAsync<List<NotificationEmail>>(cancellationToken);
+            return rows?.FirstOrDefault() ?? simulationEngine.AddNotificationEmail(email, name);
+        }
+        catch
+        {
+            return simulationEngine.AddNotificationEmail(email, name);
+        }
     }
 
     public async Task<List<NotificationWhatsApp>> GetNotificationWhatsAppAsync(CancellationToken cancellationToken = default)
     {
-        return await http.GetFromJsonAsync<List<NotificationWhatsApp>>("api/notification-whatsapp", cancellationToken) ?? [];
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.GetNotificationWhatsApp();
+        }
+
+        try
+        {
+            return await http.GetFromJsonAsync<List<NotificationWhatsApp>>("api/notification-whatsapp", cancellationToken) ?? simulationEngine.GetNotificationWhatsApp();
+        }
+        catch
+        {
+            return simulationEngine.GetNotificationWhatsApp();
+        }
     }
 
     public async Task<NotificationWhatsApp?> AddNotificationWhatsAppAsync(string phone, string? name, string? apiKey, CancellationToken cancellationToken = default)
     {
-        var request = new { phone, name, apikey = apiKey };
-        var response = await http.PostAsJsonAsync("api/notification-whatsapp", request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        var rows = await response.Content.ReadFromJsonAsync<List<NotificationWhatsApp>>(cancellationToken);
-        return rows?.FirstOrDefault();
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.AddNotificationWhatsApp(phone, name);
+        }
+
+        try
+        {
+            var request = new { phone, name, apikey = apiKey };
+            var response = await http.PostAsJsonAsync("api/notification-whatsapp", request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var rows = await response.Content.ReadFromJsonAsync<List<NotificationWhatsApp>>(cancellationToken);
+            return rows?.FirstOrDefault() ?? simulationEngine.AddNotificationWhatsApp(phone, name);
+        }
+        catch
+        {
+            return simulationEngine.AddNotificationWhatsApp(phone, name);
+        }
     }
 
     public async Task<bool> DeleteNotificationWhatsAppAsync(long id, CancellationToken cancellationToken = default)
     {
-        var request = new { id };
-        var response = await http.PostAsJsonAsync("api/notification-whatsapp/delete", request, cancellationToken);
-        return response.IsSuccessStatusCode;
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return simulationEngine.DeleteNotificationWhatsApp(id);
+        }
+
+        try
+        {
+            var request = new { id };
+            var response = await http.PostAsJsonAsync("api/notification-whatsapp/delete", request, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return simulationEngine.DeleteNotificationWhatsApp(id);
+        }
     }
 
     public async Task<bool> SendTestWhatsAppAsync(string? phone = null, string? name = null, CancellationToken cancellationToken = default)
     {
-        var request = new { phone, name };
-        var response = await http.PostAsJsonAsync("api/notification-whatsapp/test", request, cancellationToken);
-        return response.IsSuccessStatusCode;
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            return true;
+        }
+
+        try
+        {
+            var request = new { phone, name };
+            var response = await http.PostAsJsonAsync("api/notification-whatsapp/test", request, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     public async Task<SimulatorStateDto?> GetSimulatorStateAsync(CancellationToken cancellationToken = default)

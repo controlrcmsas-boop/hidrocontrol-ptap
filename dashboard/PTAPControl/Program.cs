@@ -32,6 +32,11 @@ builder.Services.AddCors(options =>
 
 // ─── Base de datos de autenticación (SQLite) ──────────────────────────────────
 var dbPath = builder.Configuration["Auth:DbPath"] ?? "hidrocontrol-auth.db";
+var dbDir = Path.GetDirectoryName(dbPath);
+if (!string.IsNullOrEmpty(dbDir) && !Directory.Exists(dbDir))
+{
+    Directory.CreateDirectory(dbDir);
+}
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
 

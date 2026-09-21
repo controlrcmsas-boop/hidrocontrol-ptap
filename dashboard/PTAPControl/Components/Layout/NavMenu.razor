@@ -4,37 +4,31 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
 
-<div class="nav-shell @(_isMobileMenuOpen ? "mobile-open" : "")">
+<div class="nav-shell" id="appNavShell">
     <div class="nav-top-bar">
-        <a class="brand" href="" @onclick="CloseMobileMenu">
+        <a class="brand" href="" onclick="closeMobileNav()">
             <span>H</span>
             <strong>HIDROCONTROL</strong>
         </a>
-        <button type="button" class="mobile-nav-toggle" @onclick="ToggleMobileMenu" aria-label="Abrir menú de navegación">
-            @if (_isMobileMenuOpen)
-            {
-                <span>✕</span>
-            }
-            else
-            {
-                <span>☰</span>
-            }
+        <button type="button" class="mobile-nav-toggle" onclick="toggleMobileNav()" aria-label="Abrir menú de navegación">
+            <span class="icon-closed">☰</span>
+            <span class="icon-opened">✕</span>
         </button>
     </div>
 
-    <div class="nav-collapsible @(_isMobileMenuOpen ? "open" : "")">
+    <div class="nav-collapsible">
         <nav>
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All" @onclick="CloseMobileMenu">🏭 PTAP Control</NavLink>
-            <NavLink class="nav-link" href="analisis-ia" @onclick="CloseMobileMenu">🤖 Análisis IA <span class="ai-nav-pill">PRO</span></NavLink>
-            <NavLink class="nav-link" href="historicos" @onclick="CloseMobileMenu">📊 Históricos</NavLink>
-            <NavLink class="nav-link" href="alarmas" @onclick="CloseMobileMenu">🔔 Alarmas</NavLink>
-            <NavLink class="nav-link" href="simulador" @onclick="CloseMobileMenu">🎮 Simulador PLC</NavLink>
-            <NavLink class="nav-link" href="configuracion" @onclick="CloseMobileMenu">⚙️ Configuración</NavLink>
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All" onclick="closeMobileNav()">🏭 PTAP Control</NavLink>
+            <NavLink class="nav-link" href="analisis-ia" onclick="closeMobileNav()">🤖 Análisis IA <span class="ai-nav-pill">PRO</span></NavLink>
+            <NavLink class="nav-link" href="historicos" onclick="closeMobileNav()">📊 Históricos</NavLink>
+            <NavLink class="nav-link" href="alarmas" onclick="closeMobileNav()">🔔 Alarmas</NavLink>
+            <NavLink class="nav-link" href="simulador" onclick="closeMobileNav()">🎮 Simulador PLC</NavLink>
+            <NavLink class="nav-link" href="configuracion" onclick="closeMobileNav()">⚙️ Configuración</NavLink>
 
             <AuthorizeView Roles="Administrador">
                 <Authorized>
                     <hr class="nav-divider" />
-                    <NavLink class="nav-link nav-link-admin" href="admin/users" @onclick="CloseMobileMenu">👥 Usuarios</NavLink>
+                    <NavLink class="nav-link nav-link-admin" href="admin/users" onclick="closeMobileNav()">👥 Usuarios</NavLink>
                 </Authorized>
             </AuthorizeView>
         </nav>
@@ -53,27 +47,31 @@
                     <a class="nav-logout" href="/logout">🚪 Cerrar sesión</a>
                 </Authorized>
                 <NotAuthorized>
-                    <a class="nav-link" href="/login" @onclick="CloseMobileMenu">🔑 Iniciar sesión</a>
+                    <a class="nav-link" href="/login" onclick="closeMobileNav()">🔑 Iniciar sesión</a>
                 </NotAuthorized>
             </AuthorizeView>
         </div>
     </div>
 </div>
 
+<script>
+    function toggleMobileNav() {
+        var s = document.getElementById('appNavShell');
+        if (s) {
+            s.classList.toggle('mobile-open');
+        }
+    }
+    function closeMobileNav() {
+        var s = document.getElementById('appNavShell');
+        if (s) {
+            s.classList.remove('mobile-open');
+        }
+    }
+</script>
+
 @code {
     private string? _userName;
     private string? _userRole;
-    private bool _isMobileMenuOpen;
-
-    private void ToggleMobileMenu()
-    {
-        _isMobileMenuOpen = !_isMobileMenuOpen;
-    }
-
-    private void CloseMobileMenu()
-    {
-        _isMobileMenuOpen = false;
-    }
 
     protected override async Task OnInitializedAsync()
     {

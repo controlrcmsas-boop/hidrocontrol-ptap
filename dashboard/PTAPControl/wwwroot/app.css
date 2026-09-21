@@ -78,6 +78,24 @@ button, select, input {
     color: var(--cyan);
 }
 
+.mobile-nav-toggle .icon-opened {
+    display: none;
+}
+
+.mobile-nav-toggle .icon-closed {
+    display: inline-block;
+}
+
+.nav-shell.mobile-open .mobile-nav-toggle .icon-opened,
+.mobile-open .mobile-nav-toggle .icon-opened {
+    display: inline-block !important;
+}
+
+.nav-shell.mobile-open .mobile-nav-toggle .icon-closed,
+.mobile-open .mobile-nav-toggle .icon-closed {
+    display: none !important;
+}
+
 .nav-collapsible {
     display: flex;
     flex-direction: column;

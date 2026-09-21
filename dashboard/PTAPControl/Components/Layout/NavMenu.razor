@@ -4,51 +4,76 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
 
-<div class="nav-shell">
-    <a class="brand" href="">
-        <span>H</span>
-        <strong>HIDROCONTROL</strong>
-    </a>
+<div class="nav-shell @(_isMobileMenuOpen ? "mobile-open" : "")">
+    <div class="nav-top-bar">
+        <a class="brand" href="" @onclick="CloseMobileMenu">
+            <span>H</span>
+            <strong>HIDROCONTROL</strong>
+        </a>
+        <button type="button" class="mobile-nav-toggle" @onclick="ToggleMobileMenu" aria-label="Abrir menú de navegación">
+            @if (_isMobileMenuOpen)
+            {
+                <span>✕</span>
+            }
+            else
+            {
+                <span>☰</span>
+            }
+        </button>
+    </div>
 
-    <nav>
-        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">🏭 PTAP Control</NavLink>
-        <NavLink class="nav-link" href="analisis-ia">🤖 Análisis IA <span class="ai-nav-pill">PRO</span></NavLink>
-        <NavLink class="nav-link" href="historicos">📊 Históricos</NavLink>
-        <NavLink class="nav-link" href="alarmas">🔔 Alarmas</NavLink>
-        <NavLink class="nav-link" href="simulador">🎮 Simulador PLC</NavLink>
-        <NavLink class="nav-link" href="configuracion">⚙️ Configuracion</NavLink>
+    <div class="nav-collapsible @(_isMobileMenuOpen ? "open" : "")">
+        <nav>
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All" @onclick="CloseMobileMenu">🏭 PTAP Control</NavLink>
+            <NavLink class="nav-link" href="analisis-ia" @onclick="CloseMobileMenu">🤖 Análisis IA <span class="ai-nav-pill">PRO</span></NavLink>
+            <NavLink class="nav-link" href="historicos" @onclick="CloseMobileMenu">📊 Históricos</NavLink>
+            <NavLink class="nav-link" href="alarmas" @onclick="CloseMobileMenu">🔔 Alarmas</NavLink>
+            <NavLink class="nav-link" href="simulador" @onclick="CloseMobileMenu">🎮 Simulador PLC</NavLink>
+            <NavLink class="nav-link" href="configuracion" @onclick="CloseMobileMenu">⚙️ Configuración</NavLink>
 
-        <AuthorizeView Roles="Administrador">
-            <Authorized>
-                <hr class="nav-divider" />
-                <NavLink class="nav-link nav-link-admin" href="admin/users">👥 Usuarios</NavLink>
-            </Authorized>
-        </AuthorizeView>
-    </nav>
+            <AuthorizeView Roles="Administrador">
+                <Authorized>
+                    <hr class="nav-divider" />
+                    <NavLink class="nav-link nav-link-admin" href="admin/users" @onclick="CloseMobileMenu">👥 Usuarios</NavLink>
+                </Authorized>
+            </AuthorizeView>
+        </nav>
 
-    <!-- Info del usuario autenticado -->
-    <div class="nav-user-section">
-        <AuthorizeView>
-            <Authorized>
-                <div class="nav-user-info">
-                    <div class="nav-user-avatar">@(_userName?.FirstOrDefault() ?? '?')</div>
-                    <div class="nav-user-details">
-                        <span class="nav-user-name">@_userName</span>
-                        <span class="nav-user-role">@_userRole</span>
+        <!-- Info del usuario autenticado -->
+        <div class="nav-user-section">
+            <AuthorizeView>
+                <Authorized>
+                    <div class="nav-user-info">
+                        <div class="nav-user-avatar">@(_userName?.FirstOrDefault() ?? '?')</div>
+                        <div class="nav-user-details">
+                            <span class="nav-user-name">@_userName</span>
+                            <span class="nav-user-role">@_userRole</span>
+                        </div>
                     </div>
-                </div>
-                <a class="nav-logout" href="/logout">🚪 Cerrar sesión</a>
-            </Authorized>
-            <NotAuthorized>
-                <a class="nav-link" href="/login">🔑 Iniciar sesión</a>
-            </NotAuthorized>
-        </AuthorizeView>
+                    <a class="nav-logout" href="/logout">🚪 Cerrar sesión</a>
+                </Authorized>
+                <NotAuthorized>
+                    <a class="nav-link" href="/login" @onclick="CloseMobileMenu">🔑 Iniciar sesión</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
     </div>
 </div>
 
 @code {
     private string? _userName;
     private string? _userRole;
+    private bool _isMobileMenuOpen;
+
+    private void ToggleMobileMenu()
+    {
+        _isMobileMenuOpen = !_isMobileMenuOpen;
+    }
+
+    private void CloseMobileMenu()
+    {
+        _isMobileMenuOpen = false;
+    }
 
     protected override async Task OnInitializedAsync()
     {

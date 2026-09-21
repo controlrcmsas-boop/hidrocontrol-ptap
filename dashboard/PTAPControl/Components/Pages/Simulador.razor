@@ -597,6 +597,58 @@
         margin: 10px 0 0 0;
         line-height: 1.4;
     }
+
+    @@media (max-width: 768px) {
+        .simulator-header {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+        }
+        .page-title {
+            font-size: 1.35rem;
+        }
+        .btn-goto-scada {
+            width: 100%;
+            justify-content: center;
+            min-height: 44px;
+        }
+        .preset-section {
+            padding: 12px;
+        }
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+        .preset-btn {
+            width: 100%;
+            text-align: center;
+            padding: 10px 12px;
+            min-height: 42px;
+        }
+        .simulator-grid {
+            grid-template-columns: 1fr !important;
+            gap: 14px;
+        }
+        .sim-card {
+            padding: 14px;
+            gap: 14px;
+        }
+        .sim-slider {
+            height: 12px;
+        }
+        .sim-slider::-webkit-slider-thumb {
+            width: 28px;
+            height: 28px;
+        }
+        .preview-metrics {
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+        .switch-row {
+            padding: 12px;
+        }
+    }
 </style>
 
 @code {

@@ -84,7 +84,7 @@
                 Escribe una condición de proceso y la acción que el supervisor virtual debe aplicar cuando esa condición ocurra:
             </p>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end;">
+            <div class="teach-agent-form-grid">
                 <label style="display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: #cbd5e1;">
                     Condición (Ej: "Turbidez de agua cruda > 80 NTU")
                     <input type="text" style="background: #0b151b; border: 1px solid var(--line); border-radius: 4px; padding: 7px 10px; color: #fff;" 
@@ -170,7 +170,7 @@
                 </div>
             </div>
 
-            <div class="email-form whatsapp-form" style="grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.4fr) auto;">
+            <div class="email-form whatsapp-form">
                 <label>
                     Nombre operador / responsable
                     <input type="text" @bind="NewWaName" placeholder="Ingeniero / Operador" />

@@ -1678,6 +1678,60 @@ h2 {
     cursor: not-allowed;
 }
 
+.btn-sim-low-conf {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.35) 100%);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.90rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-sim-low-conf:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.4);
+    border-color: #ef4444;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+}
+
+.btn-sim-low-conf:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-restore-normal {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(16, 185, 129, 0.35) 100%);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.5);
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.90rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-restore-normal:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.4);
+    border-color: #22c55e;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4);
+}
+
+.btn-restore-normal:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* Resumen Ejecutivo Superior */
 .ai-overview-grid {
     display: grid;

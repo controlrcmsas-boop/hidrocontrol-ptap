@@ -21,6 +21,12 @@
             </h1>
         </div>
         <div class="ai-header-actions" style="display: flex; gap: 10px; align-items: center;">
+            @if (Evaluation is not null && (Evaluation.ConfidenceScore < 0.55 || Evaluation.RequiresOperatorIntervention))
+            {
+                <button type="button" class="btn-restore-normal" @onclick="RestoreNormalOperationAsync" disabled="@IsAnalyzing" title="Restablecer planta y parámetros a operación nominal">
+                    <span>☀️ Restablecer Operación Normal</span>
+                </button>
+            }
             <button type="button" class="btn-sim-low-conf" @onclick="SimulateLowConfidenceScenarioAsync" disabled="@IsAnalyzing" title="Simular condición crítica con factor de confianza bajo (<55%)">
                 <span>⚠️ Simular Baja Confianza (38%)</span>
             </button>
@@ -470,16 +476,41 @@
     private async Task SimulateLowConfidenceScenarioAsync()
     {
         IsAnalyzing = true;
-        StatusMessage = "⏳ Simulando perturbación de proceso y evaluando con TypeSafe Jev...";
+        StatusMessage = "⏳ Inyectando perturbación física severa (Turbidez 85 NTU) y evaluando con TypeSafe Jev...";
         StateHasChanged();
+
+        // 1. Inyectar perturbación en el motor de simulación física y telemetría
+        await Api.SetSimulatorScenarioAsync("low_confidence");
+        await RefreshTelemetryAsync();
 
         await Task.Delay(350);
 
+        // 2. Evaluar escenario de baja confianza con TypeSafe Jev
         Evaluation = TypeSafe.SimulateLowConfidenceScenario(Telemetry, ActiveAlarms);
         DosingSuggestions = Evaluation.DosingSuggestions;
         
-        StatusMessage = Evaluation.InterventionReason;
+        StatusMessage = $"{Evaluation.InterventionReason} ⚠️ La perturbación física ha sido inyectada a la telemetría e históricos de la planta.";
         IsStatusSuccess = false;
+        IsAnalyzing = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RestoreNormalOperationAsync()
+    {
+        IsAnalyzing = true;
+        StatusMessage = "⏳ Restableciendo variables de planta a régimen nominal normal...";
+        StateHasChanged();
+
+        // 1. Restablecer escenario normal en el motor de simulación
+        await Api.SetSimulatorScenarioAsync("normal");
+        await RefreshTelemetryAsync();
+
+        await Task.Delay(350);
+
+        // 2. Re-evaluar planta con TypeSafe Jev
+        await ExecuteComprehensiveAnalysisAsync();
+        StatusMessage = "✅ Planta restablecida a operación nominal. Telemetría e históricos sincronizados en rango seguro.";
+        IsStatusSuccess = true;
         IsAnalyzing = false;
         await InvokeAsync(StateHasChanged);
     }

@@ -57,9 +57,12 @@ public sealed class PtapSimulationEngine
             ActiveScenario = scenarioName.ToLowerInvariant();
             switch (ActiveScenario)
             {
+                case "low_confidence":
                 case "rain":
                     TurbidezCrudaBase = 85.0;
                     PhCrudaBase = 6.80;
+                    ConductividadCrudaBase = 520.0;
+                    PresionB1Base = 3.10;
                     break;
                 case "pump_fault":
                     BombaPrincipalEstado = false;
@@ -76,6 +79,8 @@ public sealed class PtapSimulationEngine
                     ActiveScenario = "normal";
                     TurbidezCrudaBase = 18.5;
                     PhCrudaBase = 7.25;
+                    ConductividadCrudaBase = 425.0;
+                    PresionB1Base = 2.45;
                     BombaPrincipalEstado = true;
                     DosificadorSulfatoEstado = true;
                     DosificadorCloroEstado = true;
@@ -319,24 +324,87 @@ public sealed class PtapSimulationEngine
         {
             var points = new List<QualityHistoryPoint>();
             var now = DateTimeOffset.UtcNow;
-            double baseVal = tag switch
+            bool isDisturbed = ActiveScenario == "low_confidence" || ActiveScenario == "rain" || TurbidezCrudaBase > 40.0;
+
+            string unit = tag.StartsWith("ph_") ? "pH" : (tag.StartsWith("turbidez_") ? "NTU" : "µS/cm");
+
+            // Línea base estándar (operación nominal de planta)
+            double normalVal = tag switch
             {
-                "ph_agua_cruda" => PhCrudaBase,
-                "turbidez_agua_cruda" => TurbidezCrudaBase,
-                "conductividad_agua_cruda" => ConductividadCrudaBase,
-                "ph_agua_tratada" => 7.1,
+                "ph_agua_cruda" => 7.25,
+                "turbidez_agua_cruda" => 18.5,
+                "conductividad_agua_cruda" => 425.0,
+                "ph_agua_tratada" => 7.10,
                 "turbidez_agua_tratada" => 0.45,
                 "conductividad_agua_tratada" => 440.0,
                 _ => 10.0
             };
 
+            // Valores de pico durante la perturbación / evento de baja confianza
+            double disturbedVal = tag switch
+            {
+                "ph_agua_cruda" => PhCrudaBase,
+                "turbidez_agua_cruda" => TurbidezCrudaBase,
+                "conductividad_agua_cruda" => ConductividadCrudaBase,
+                "ph_agua_tratada" => 6.95,
+                "turbidez_agua_tratada" => 1.95, // Sobrepasa límite normativo de 1.8 NTU
+                "conductividad_agua_tratada" => 510.0,
+                _ => 10.0
+            };
+
+            // Curva transitoria temporal:
+            // 1. Antes del 45% del tiempo registrado: Operación normal estable
+            // 2. Entre el 45% y 25%: Rampa de subida pronunciada de la perturbación
+            // 3. Del 25% al presente (0%): Estado perturbado pico
+            int rampStartIdx = (int)(limit * 0.45);
+            int rampEndIdx = (int)(limit * 0.25);
+
             for (int i = limit; i >= 0; i--)
             {
+                double targetVal;
+                if (!isDisturbed)
+                {
+                    targetVal = normalVal;
+                }
+                else
+                {
+                    if (i >= rampStartIdx)
+                    {
+                        targetVal = normalVal;
+                    }
+                    else if (i <= rampEndIdx)
+                    {
+                        targetVal = disturbedVal;
+                    }
+                    else
+                    {
+                        double t = (double)(rampStartIdx - i) / (rampStartIdx - rampEndIdx);
+                        double smooth = t * t * (3 - 2 * t);
+                        targetVal = normalVal + (disturbedVal - normalVal) * smooth;
+                    }
+                }
+
+                double noiseStd = Math.Max(0.015, targetVal * 0.035);
+                double sampled = Math.Max(0.01, targetVal + NextGaussian(0, noiseStd));
+                decimal roundedVal = (decimal)Math.Round(sampled, 2);
+
+                string quality = "GOOD";
+                if (tag == "turbidez_agua_tratada" && roundedVal > 1.80m)
+                {
+                    quality = "BAD";
+                }
+                else if (tag == "turbidez_agua_cruda" && roundedVal > 50.0m)
+                {
+                    quality = "WARNING";
+                }
+
                 points.Add(new QualityHistoryPoint
                 {
                     RecordedAt = now.AddSeconds(-i * 5),
-                    ValueNumeric = (decimal)Math.Round(baseVal + NextGaussian(0, Math.Max(0.01, baseVal * 0.05)), 2),
-                    TagId = tag
+                    ValueNumeric = roundedVal,
+                    TagId = tag,
+                    Unit = unit,
+                    Quality = quality
                 });
             }
             return points;

@@ -1,6 +1,7 @@
 @page "/"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Operador,Administrador")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Operador,Gerente")]
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Authorization
 @using PTAPControl.Models
 @using PTAPControl.Services
 @implements IAsyncDisposable
@@ -14,23 +15,27 @@
             <p class="eyebrow">HIDROCONTROL PTAP V2.2</p>
             <h1>PTAP Control</h1>
         </div>
-        <div class="mode-selector-strip">
-            <label class="mode-label">Modo Operativo:</label>
-            <div class="mode-buttons-group">
-                <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.SimulatedAuto ? "active auto" : "")" 
-                        @onclick="() => SwitchMode(PtapDataSourceMode.SimulatedAuto)" title="Simulación autónoma continua en la nube (Ideal para demos 24/7)">
-                    🌐 Piloto Auto (Nube)
-                </button>
-                <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.SimulatedManual ? "active manual" : "")" 
-                        @onclick="() => SwitchMode(PtapDataSourceMode.SimulatedManual)" title="Showroom interactivo con inyección de fallas">
-                    🎮 Showroom Demo
-                </button>
-                <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.PhysicalPlc ? "active plc" : "")" 
-                        @onclick="() => SwitchMode(PtapDataSourceMode.PhysicalPlc)" title="Conexión física directa con PLC Siemens S7-1200 en planta">
-                    🏭 Planta Real (PLC)
-                </button>
-            </div>
-        </div>
+        <AuthorizeView Roles="Operador">
+            <Authorized>
+                <div class="mode-selector-strip">
+                    <label class="mode-label">Modo Operativo:</label>
+                    <div class="mode-buttons-group">
+                        <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.SimulatedAuto ? "active auto" : "")" 
+                                @onclick="() => SwitchMode(PtapDataSourceMode.SimulatedAuto)" title="Simulación autónoma continua en la nube (Ideal para demos 24/7)">
+                            🌐 Piloto Auto (Nube)
+                        </button>
+                        <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.SimulatedManual ? "active manual" : "")" 
+                                @onclick="() => SwitchMode(PtapDataSourceMode.SimulatedManual)" title="Showroom interactivo con inyección de fallas">
+                            🎮 Showroom Demo
+                        </button>
+                        <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.PhysicalPlc ? "active plc" : "")" 
+                                @onclick="() => SwitchMode(PtapDataSourceMode.PhysicalPlc)" title="Conexión física directa con PLC Siemens S7-1200 en planta">
+                            🏭 Planta Real (PLC)
+                        </button>
+                    </div>
+                </div>
+            </Authorized>
+        </AuthorizeView>
 
         <div class="system-strip">
             <span class="status-dot @(Telemetry?.PlcConnected == true ? "ok" : "bad")"></span>
@@ -44,23 +49,7 @@
         </div>
     </header>
 
-    @if (Api.Simulation.CurrentMode == PtapDataSourceMode.SimulatedManual)
-    {
-        <div class="showroom-banner">
-            <div class="showroom-info">
-                <strong>🕹️ Modo Showroom Interactivo:</strong> Prueba escenarios de falla en tiempo real para demostraciones comerciales.
-            </div>
-            <div class="showroom-actions">
-                <button type="button" class="btn-scenario @(Api.Simulation.ActiveScenario == "normal" ? "active" : "")" @onclick="@(() => SetScenario("normal"))">☀️ Normal</button>
-                <button type="button" class="btn-scenario rain @(Api.Simulation.ActiveScenario == "rain" ? "active" : "")" @onclick="@(() => SetScenario("rain"))">🌧️ Lluvia (Turbidez 85 NTU)</button>
-                <button type="button" class="btn-scenario warn @(Api.Simulation.ActiveScenario == "pump_fault" ? "active" : "")" @onclick="@(() => SetScenario("pump_fault"))">⚠️ Falla Bomba B1</button>
-                <button type="button" class="btn-scenario danger @(Api.Simulation.ActiveScenario == "chlorine_fault" ? "active" : "")" @onclick="@(() => SetScenario("chlorine_fault"))">🧪 Falla Cloro</button>
-                <button type="button" class="btn-scenario disconnect @(Api.Simulation.SimulatePlcDisconnected ? "active" : "")" @onclick="ToggleSimulatedDisconnect">
-                    @(Api.Simulation.SimulatePlcDisconnected ? "🔌 Reconectar PLC" : "⚡ Simular Cable PLC Desconectado")
-                </button>
-            </div>
-        </div>
-    }
+
 
     @if (Telemetry?.PlcConnected == false)
     {
@@ -163,45 +152,49 @@
         </div>
 
         <aside class="side-panel">
-            <section class="panel-section">
-                <h2>Equipos</h2>
+            <AuthorizeView Roles="Operador">
+                <Authorized>
+                    <section class="panel-section">
+                        <h2>Equipos</h2>
 
-                <div class="equipment-row">
-                    <div class="equipment-id">B1</div>
-                    <div class="equipment-main">
-                        <strong>Bomba principal</strong>
-                        <span class="equipment-state @StateClass("bomba_principal_estado")">@StateText("bomba_principal_estado")</span>
-                    </div>
-                    <div class="equipment-actions">
-                        <button type="button" class="cmd start @CommandButtonClass("bomba_principal_estado", true)" @onclick='() => SendCommandAsync("bomba_principal", "start")'>ON</button>
-                        <button type="button" class="cmd stop @CommandButtonClass("bomba_principal_estado", false)" @onclick='() => SendCommandAsync("bomba_principal", "stop")'>OFF</button>
-                    </div>
-                </div>
+                        <div class="equipment-row">
+                            <div class="equipment-id">B1</div>
+                            <div class="equipment-main">
+                                <strong>Bomba principal</strong>
+                                <span class="equipment-state @StateClass("bomba_principal_estado")">@StateText("bomba_principal_estado")</span>
+                            </div>
+                            <div class="equipment-actions">
+                                <button type="button" class="cmd start @CommandButtonClass("bomba_principal_estado", true)" @onclick='() => SendCommandAsync("bomba_principal", "start")'>ON</button>
+                                <button type="button" class="cmd stop @CommandButtonClass("bomba_principal_estado", false)" @onclick='() => SendCommandAsync("bomba_principal", "stop")'>OFF</button>
+                            </div>
+                        </div>
 
-                <div class="equipment-row">
-                    <div class="equipment-id">B2</div>
-                    <div class="equipment-main">
-                        <strong>Dosificador sulfato</strong>
-                        <span class="equipment-state @StateClass("dosificador_sulfato_estado")">@StateText("dosificador_sulfato_estado")</span>
-                    </div>
-                    <div class="equipment-actions">
-                        <button type="button" class="cmd start @CommandButtonClass("dosificador_sulfato_estado", true)" @onclick='() => SendCommandAsync("dosificador_sulfato", "start")'>ON</button>
-                        <button type="button" class="cmd stop @CommandButtonClass("dosificador_sulfato_estado", false)" @onclick='() => SendCommandAsync("dosificador_sulfato", "stop")'>OFF</button>
-                    </div>
-                </div>
+                        <div class="equipment-row">
+                            <div class="equipment-id">B2</div>
+                            <div class="equipment-main">
+                                <strong>Dosificador sulfato</strong>
+                                <span class="equipment-state @StateClass("dosificador_sulfato_estado")">@StateText("dosificador_sulfato_estado")</span>
+                            </div>
+                            <div class="equipment-actions">
+                                <button type="button" class="cmd start @CommandButtonClass("dosificador_sulfato_estado", true)" @onclick='() => SendCommandAsync("dosificador_sulfato", "start")'>ON</button>
+                                <button type="button" class="cmd stop @CommandButtonClass("dosificador_sulfato_estado", false)" @onclick='() => SendCommandAsync("dosificador_sulfato", "stop")'>OFF</button>
+                            </div>
+                        </div>
 
-                <div class="equipment-row">
-                    <div class="equipment-id">B3</div>
-                    <div class="equipment-main">
-                        <strong>Dosificador cloro</strong>
-                        <span class="equipment-state @StateClass("dosificador_cloro_estado")">@StateText("dosificador_cloro_estado")</span>
-                    </div>
-                    <div class="equipment-actions">
-                        <button type="button" class="cmd start @CommandButtonClass("dosificador_cloro_estado", true)" @onclick='() => SendCommandAsync("dosificador_cloro", "start")'>ON</button>
-                        <button type="button" class="cmd stop @CommandButtonClass("dosificador_cloro_estado", false)" @onclick='() => SendCommandAsync("dosificador_cloro", "stop")'>OFF</button>
-                    </div>
-                </div>
-            </section>
+                        <div class="equipment-row">
+                            <div class="equipment-id">B3</div>
+                            <div class="equipment-main">
+                                <strong>Dosificador cloro</strong>
+                                <span class="equipment-state @StateClass("dosificador_cloro_estado")">@StateText("dosificador_cloro_estado")</span>
+                            </div>
+                            <div class="equipment-actions">
+                                <button type="button" class="cmd start @CommandButtonClass("dosificador_cloro_estado", true)" @onclick='() => SendCommandAsync("dosificador_cloro", "start")'>ON</button>
+                                <button type="button" class="cmd stop @CommandButtonClass("dosificador_cloro_estado", false)" @onclick='() => SendCommandAsync("dosificador_cloro", "stop")'>OFF</button>
+                            </div>
+                        </div>
+                    </section>
+                </Authorized>
+            </AuthorizeView>
 
             <section class="panel-section compact-metrics">
                 <h2>Calidad</h2>

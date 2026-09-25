@@ -1,34 +1,37 @@
 @page "/analisis-ia"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Operador")]
 @rendermode InteractiveServer
 @using PTAPControl.Models
 @using PTAPControl.Services
 @implements IAsyncDisposable
 @inject NodeRedApiClient Api
-@inject GeminiAiService Ai
+@inject TypeSafeAiClientService TypeSafe
 @inject AiChatStateService ChatState
 
-<PageTitle>Análisis IA - HIDROCONTROL PTAP</PageTitle>
+<PageTitle>Evaluación TypeSafe AI - HIDROCONTROL PTAP</PageTitle>
 
 <section class="ai-page">
     <!-- Encabezado Superior Compacto -->
     <header class="ai-header-banner">
         <div class="ai-header-title">
-            <p class="eyebrow">HIDROCONTROL PTAP V2.2 &bull; SUPERVISOR VIRTUAL LOCAL</p>
+            <p class="eyebrow">HIDROCONTROL PTAP V2.2 &bull; TYPESAFE AI (JEV SYSTEM ONE)</p>
             <h1>
-                <span>🧠</span>
-                <span>Supervisor de Planta PTAP (100% Local / Offline)</span>
+                <span>🛡️</span>
+                <span>Evaluación Operativa SCADA &amp; Decisiones Tipadas</span>
             </h1>
         </div>
-        <div class="ai-header-actions">
+        <div class="ai-header-actions" style="display: flex; gap: 10px; align-items: center;">
+            <button type="button" class="btn-sim-low-conf" @onclick="SimulateLowConfidenceScenarioAsync" disabled="@IsAnalyzing" title="Simular condición crítica con factor de confianza bajo (<55%)">
+                <span>⚠️ Simular Baja Confianza (38%)</span>
+            </button>
             <button type="button" class="btn-ai-primary" @onclick="ExecuteComprehensiveAnalysisAsync" disabled="@IsAnalyzing">
                 @if (IsAnalyzing)
                 {
-                    <span>⏳ Analizando...</span>
+                    <span>⏳ Evaluando con Jev...</span>
                 }
                 else
                 {
-                    <span>⚡ Actualizar Diagnóstico</span>
+                    <span>⚡ Evaluar con TypeSafe Jev (En Vivo)</span>
                 }
             </button>
         </div>
@@ -45,36 +48,122 @@
     <div class="ai-workspace-layout">
         <!-- Columna Izquierda: Información de Planta, Dosificación Compacta y Anomalías -->
         <aside class="ai-sidebar-column">
-            <!-- 1. Estado y Salud de la Planta -->
-            @if (Analysis is not null)
+            <!-- 1. Estado, Salud y Factor de Confianza Calibrado -->
+            @if (Evaluation is not null)
             {
                 <div class="ai-sidebar-health-card">
                     <div class="ai-health-top-row">
                         <div class="ai-score-pill">
                             <span>🩺</span>
-                            <span>@Analysis.ScorePercentage%</span>
+                            <span>@Evaluation.ScorePercentage%</span>
                             <small>Salud</small>
                         </div>
-                        <span class="ai-status-badge @GetStatusBadgeClass(Analysis.OverallStatus)">
-                            @Analysis.OverallStatus
+                        <span class="ai-status-badge @GetStatusBadgeClass(Evaluation.OverallStatus)">
+                            @Evaluation.OverallStatus
                         </span>
                     </div>
 
-                    <p style="font-size: 0.84rem; color: #cbd5e1; margin: 0; line-height: 1.35;">
-                        @Analysis.ExecutiveSummary
+                    <!-- Factor de Confianza Calibrado para el SCADA -->
+                    <div class="confidence-container">
+                        <span class="confidence-title">Factor de Confianza Calibrado:</span>
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span class="confidence-pill @GetConfidenceClass(Evaluation.ConfidenceLevel)">
+                                @(Evaluation.ConfidenceLevel == "Alta" ? "🛡️" : Evaluation.ConfidenceLevel == "Media" ? "⚠️" : "🚨")
+                                Confianza @Evaluation.ConfidenceLevel (@Evaluation.ConfidenceScore.ToString("P0"))
+                            </span>
+                            <small style="color: #94a3b8; font-size: 0.72rem;">@(Evaluation.IsLiveApi ? "⚡ API En Vivo" : "🛡️ Motor Local Seguro")</small>
+                        </div>
+                    </div>
+
+                    <!-- Alerta de Intervención del Operador si Confianza es Baja o hay Condición Crítica -->
+                    @if (Evaluation.RequiresOperatorIntervention)
+                    {
+                        <div class="intervention-alert-banner">
+                            <div style="display: flex; align-items: center; gap: 6px; font-weight: 800; color: #f87171; font-size: 0.82rem;">
+                                <span>🚨</span>
+                                <span>TOMA DE CONTROL OPERATIVO REQUERIDA</span>
+                            </div>
+                            <p style="margin: 2px 0 0 0; font-size: 0.76rem; line-height: 1.3; color: #fecaca;">
+                                @Evaluation.InterventionReason
+                            </p>
+                        </div>
+
+                        <!-- Panel de Control Manual de Actuadores para el Operador -->
+                        <div class="manual-override-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                                <strong style="color: #fca5a5; font-size: 0.82rem; display: flex; align-items: center; gap: 5px;">
+                                    <span>🎮</span> Mando Directo de Actuadores
+                                </strong>
+                                <span class="supervision-pill" style="background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #f87171; font-size: 0.65rem; padding: 2px 6px;">
+                                    Técnico Operador
+                                </span>
+                            </div>
+
+                            <div class="override-actuator-row">
+                                <div>
+                                    <span class="override-actuator-name">Bomba Principal B1</span>
+                                    <span class="override-actuator-status @(Telemetry?.GetBool("bomba_principal_estado") == true ? "on" : "off")">
+                                        @(Telemetry?.GetBool("bomba_principal_estado") == true ? "ENCENDIDA (ON)" : "APAGADA (OFF)")
+                                    </span>
+                                </div>
+                                <button type="button" class="btn-override @(Telemetry?.GetBool("bomba_principal_estado") == true ? "stop" : "start")" 
+                                        @onclick='() => ToggleActuatorAsync("bomba_principal", Telemetry?.GetBool("bomba_principal_estado") != true)'>
+                                    @(Telemetry?.GetBool("bomba_principal_estado") == true ? "🛑 Apagar B1" : "🟢 Encender B1")
+                                </button>
+                            </div>
+
+                            <div class="override-actuator-row">
+                                <div>
+                                    <span class="override-actuator-name">Dosificador Sulfato B2</span>
+                                    <span class="override-actuator-status @(Telemetry?.GetBool("dosificador_sulfato_estado") == true ? "on" : "off")">
+                                        @(Telemetry?.GetBool("dosificador_sulfato_estado") == true ? "DOSIFICANDO" : "DETENIDO")
+                                    </span>
+                                </div>
+                                <button type="button" class="btn-override @(Telemetry?.GetBool("dosificador_sulfato_estado") == true ? "stop" : "start")" 
+                                        @onclick='() => ToggleActuatorAsync("dosificador_sulfato", Telemetry?.GetBool("dosificador_sulfato_estado") != true)'>
+                                    @(Telemetry?.GetBool("dosificador_sulfato_estado") == true ? "🛑 Detener B2" : "🟢 Iniciar B2")
+                                </button>
+                            </div>
+
+                            <div class="override-actuator-row">
+                                <div>
+                                    <span class="override-actuator-name">Dosificador Cloro B3</span>
+                                    <span class="override-actuator-status @(Telemetry?.GetBool("dosificador_cloro_estado") == true ? "on" : "off")">
+                                        @(Telemetry?.GetBool("dosificador_cloro_estado") == true ? "DOSIFICANDO" : "DETENIDO")
+                                    </span>
+                                </div>
+                                <button type="button" class="btn-override @(Telemetry?.GetBool("dosificador_cloro_estado") == true ? "stop" : "start")" 
+                                        @onclick='() => ToggleActuatorAsync("dosificador_cloro", Telemetry?.GetBool("dosificador_cloro_estado") != true)'>
+                                    @(Telemetry?.GetBool("dosificador_cloro_estado") == true ? "🛑 Detener B3" : "🟢 Iniciar B3")
+                                </button>
+                            </div>
+
+                            <button type="button" class="btn-override-emergency" @onclick="ExecuteEmergencyStopAsync">
+                                🚨 PARADA GENERAL DE EMERGENCIA
+                            </button>
+                        </div>
+                    }
+
+                    <div style="font-size: 0.72rem; color: #94a3b8; display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px;">
+                        <span>Motor: <strong>@Evaluation.ModelVersion</strong></span>
+                        <span>Latencia: <strong>@(Evaluation.LatencyMs) ms</strong></span>
+                    </div>
+
+                    <p style="font-size: 0.82rem; color: #cbd5e1; margin: 0; line-height: 1.35;">
+                        @Evaluation.ExecutiveSummary
                     </p>
 
-                    @if (Analysis.ImmediateRecommendations.Count > 0)
+                    @if (Evaluation.ImmediateRecommendations.Count > 0)
                     {
                         <div style="background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 4px; border-left: 2px solid var(--cyan);">
-                            <small style="color: var(--cyan); font-weight: 700; display: block; margin-bottom: 2px;">Recomendación Clave:</small>
-                            <span style="font-size: 0.8rem; color: #e2e8f0;">@Analysis.ImmediateRecommendations.FirstOrDefault()</span>
+                            <small style="color: var(--cyan); font-weight: 700; display: block; margin-bottom: 2px;">Acción Inmediata SCADA:</small>
+                            <span style="font-size: 0.78rem; color: #e2e8f0;">@Evaluation.ImmediateRecommendations.FirstOrDefault()</span>
                         </div>
                     }
                 </div>
             }
 
-            <!-- 2. Asesor de Dosificación Supervisada (Compacto) -->
+            <!-- 2. Asesor de Dosificación Supervisada con Confianza TypeSafe -->
             <div class="ai-sidebar-dosing-section">
                 <div class="section-title-badge">
                     <h2 style="font-size: 0.95rem;">
@@ -97,9 +186,14 @@
                         <div class="dosing-card-compact @(sugg.Status == "Aprobado" ? "active" : "")">
                             <div class="dosing-compact-header">
                                 <strong>@sugg.Chemical</strong>
-                                <span class="ai-status-badge @(sugg.Status == "Aprobado" ? "optimo" : sugg.Status == "Rechazado" ? "critico" : "atencion")" style="font-size: 0.68rem; padding: 2px 6px;">
-                                    @sugg.Status
-                                </span>
+                                <div style="display: flex; gap: 4px; align-items: center;">
+                                    <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                                        @sugg.Confidence
+                                    </span>
+                                    <span class="ai-status-badge @(sugg.Status == "Aprobado" ? "optimo" : sugg.Status == "Rechazado" ? "critico" : "atencion")" style="font-size: 0.68rem; padding: 2px 6px;">
+                                        @sugg.Status
+                                    </span>
+                                </div>
                             </div>
 
                             <div class="dosing-compact-vals">
@@ -107,9 +201,9 @@
                                     <small>Actual</small>
                                     <span>@sugg.CurrentValue</span>
                                 </div>
-                                <div style="color: #a855f7; font-weight: bold;">&rarr;</div>
+                                <div style="color: #38bdf8; font-weight: bold;">&rarr;</div>
                                 <div>
-                                    <small>Sugerido IA</small>
+                                    <small>Sugerido TypeSafe</small>
                                     <strong>@sugg.SuggestedDoseMgL mg/L</strong>
                                 </div>
                             </div>
@@ -134,14 +228,14 @@
                 }
             </div>
 
-            <!-- 3. Anomalías Detectadas (Compactas) -->
-            @if (Analysis?.Anomalies != null && Analysis.Anomalies.Count > 0)
+            <!-- 3. Anomalías Detectadas -->
+            @if (Evaluation?.Anomalies != null && Evaluation.Anomalies.Count > 0)
             {
                 <div class="ai-sidebar-health-card">
                     <strong style="font-size: 0.85rem; color: #e7c765; display: flex; align-items: center; gap: 6px;">
                         <span>⚠️</span> Anomalías Detectadas
                     </strong>
-                    @foreach (var anomaly in Analysis.Anomalies.Take(2))
+                    @foreach (var anomaly in Evaluation.Anomalies.Take(2))
                     {
                         <div style="font-size: 0.78rem; border-left: 2px solid @(anomaly.Level == "Critico" ? "#ff6b6b" : "#e7c765"); padding-left: 6px; margin-top: 4px;">
                             <strong style="color: #f1f5f9;">[@anomaly.Equipment] @anomaly.Title</strong>
@@ -151,15 +245,15 @@
                 </div>
             }
 
-            <!-- 4. Mini Registro de Auditoría -->
-            @if (Ai.AuditLog.Count > 0)
+            <!-- 4. Registro de Auditoría de Decisiones -->
+            @if (TypeSafe.AuditLog.Count > 0)
             {
                 <div class="ai-sidebar-health-card">
-                    <strong style="font-size: 0.85rem; color: #a855f7; display: flex; align-items: center; gap: 6px;">
+                    <strong style="font-size: 0.85rem; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
                         <span>📜</span> Últimas Decisiones Auditadas
                     </strong>
                     <div style="font-size: 0.76rem; max-height: 140px; overflow-y: auto;">
-                        @foreach (var audit in Ai.AuditLog.TakeLast(3).Reverse())
+                        @foreach (var audit in TypeSafe.AuditLog.TakeLast(3).Reverse())
                         {
                             <div style="padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
                                 <span style="color: var(--muted);">@audit.Timestamp.ToLocalTime().ToString("HH:mm:ss")</span> &bull; 
@@ -178,7 +272,7 @@
                 <div>
                     <h2>
                         <span>💬</span>
-                        <span>Supervisor Conversacional de Planta</span>
+                        <span>Copiloto de Control PTAP</span>
                     </h2>
                     <p>
                         Agua Cruda: <strong style="color: var(--cyan);">@(Telemetry?.GetNumber("turbidez_agua_cruda")?.ToString("F1") ?? "--") NTU</strong> | 
@@ -187,10 +281,10 @@
                     </p>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="supervision-pill" style="background: rgba(168, 85, 247, 0.15); border-color: #a855f7; color: #c084fc;">
-                        @(Ai.IsLocalProvider ? "💻 Agente Local (Offline)" : "✨ Gemini Pro Nube")
+                    <span class="supervision-pill" style="background: rgba(56, 189, 248, 0.15); border-color: #38bdf8; color: #38bdf8;">
+                        🛡️ TypeSafe AI (Jev System One)
                     </span>
-                    <button type="button" class="btn-clear-chat" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; color: var(--muted); font-size: 0.75rem; padding: 4px 10px; cursor: pointer;" @onclick="ClearChatHistory" title="Reiniciar conversación con el supervisor">
+                    <button type="button" class="btn-clear-chat" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; color: var(--muted); font-size: 0.75rem; padding: 4px 10px; cursor: pointer;" @onclick="ClearChatHistory" title="Reiniciar conversación">
                         <span>🗑️ Limpiar</span>
                     </button>
                 </div>
@@ -203,7 +297,7 @@
                     <div class="dominant-chat-bubble @(msg.Role == "user" ? "user" : "assistant")">
                         @if (msg.IsThinking)
                         {
-                            <span><em>Consultando telemetría y razonando respuesta...</em></span>
+                            <span><em>Consultando modelo TypeSafe Jev y evaluando telemetría...</em></span>
                         }
                         else
                         {
@@ -277,7 +371,7 @@
 @code {
     private TelemetryResponse? Telemetry;
     private List<AlarmEvent> ActiveAlarms = [];
-    private PlantHealthAnalysis? Analysis;
+    private PtapOperationalEvaluation? Evaluation;
     private List<DosingSuggestion> DosingSuggestions = [];
     private IReadOnlyList<AiChatMessage> ChatMessages => ChatState.Messages;
     private string CurrentQuestion = string.Empty;
@@ -293,15 +387,19 @@
     {
         cts = new CancellationTokenSource();
         
-        // Inicializar chat si es primera carga en la sesión
         ChatState.EnsureInitialized();
-
         await RefreshTelemetryAsync();
         
-        // Carga inicial instantánea sin bloquear la interfaz
-        Analysis = Ai.GenerateSimulatedHealthAnalysis(Telemetry, ActiveAlarms);
-        Analysis.DosingSuggestions = Ai.GenerateDosingSuggestions(Telemetry);
-        DosingSuggestions = Analysis.DosingSuggestions;
+        // Evaluación inicial rápida para no bloquear el render
+        Evaluation = TypeSafe.BuildFallbackCalibratedEvaluation(Telemetry, ActiveAlarms, 0);
+        DosingSuggestions = Evaluation.DosingSuggestions;
+
+        // Disparar evaluación completa con Jev en segundo plano
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(300);
+            await InvokeAsync(ExecuteComprehensiveAnalysisAsync);
+        });
 
         timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
         _ = AutoRefreshTelemetryLoopAsync(cts.Token);
@@ -343,17 +441,109 @@
         try
         {
             await RefreshTelemetryAsync();
-            Analysis = await Ai.AnalyzePlantHealthAsync(Telemetry, ActiveAlarms, cts?.Token ?? CancellationToken.None);
-            DosingSuggestions = Analysis.DosingSuggestions;
+            Evaluation = await TypeSafe.EvaluatePlantHealthAsync(Telemetry, ActiveAlarms, cts?.Token ?? CancellationToken.None);
+            DosingSuggestions = Evaluation.DosingSuggestions;
+            
+            if (Evaluation.RequiresOperatorIntervention)
+            {
+                StatusMessage = Evaluation.InterventionReason;
+                IsStatusSuccess = false;
+            }
+            else
+            {
+                StatusMessage = $"✅ Evaluación TypeSafe completada con éxito ({Evaluation.LatencyMs} ms). Estado: {Evaluation.OverallStatus}, Confianza: {Evaluation.ConfidenceLevel} ({Evaluation.ConfidenceScore:P0}).";
+                IsStatusSuccess = true;
+            }
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Error al analizar la planta: {ex.Message}";
+            StatusMessage = $"Error al evaluar la planta con TypeSafe: {ex.Message}";
             IsStatusSuccess = false;
         }
         finally
         {
             IsAnalyzing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SimulateLowConfidenceScenarioAsync()
+    {
+        IsAnalyzing = true;
+        StatusMessage = "⏳ Simulando perturbación de proceso y evaluando con TypeSafe Jev...";
+        StateHasChanged();
+
+        await Task.Delay(350);
+
+        Evaluation = TypeSafe.SimulateLowConfidenceScenario(Telemetry, ActiveAlarms);
+        DosingSuggestions = Evaluation.DosingSuggestions;
+        
+        StatusMessage = Evaluation.InterventionReason;
+        IsStatusSuccess = false;
+        IsAnalyzing = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ToggleActuatorAsync(string targetEquipment, bool turnOn)
+    {
+        var cmd = turnOn ? "start" : "stop";
+        var name = targetEquipment switch
+        {
+            "bomba_principal" => "Bomba Principal B1",
+            "dosificador_sulfato" => "Dosificador Sulfato B2",
+            _ => "Dosificador Cloro B3"
+        };
+
+        try
+        {
+            await Api.SendCommandAsync(targetEquipment, cmd, cts?.Token ?? CancellationToken.None);
+            TypeSafe.RecordAudit(new AiAuditEntry
+            {
+                Chemical = name,
+                Action = turnOn ? "Arranque Manual" : "Apagado Manual",
+                Operator = "Técnico Operador (Toma de Control)",
+                DoseMgL = 0,
+                Details = $"Actuador manipulado directamente por el operador ante Factor de Confianza Bajo de TypeSafe.",
+                RawWaterConditions = "CONDICIÓN CRÍTICA / MANDO DIRECTO"
+            });
+
+            StatusMessage = $"✅ Control Manual: Orden de {(turnOn ? "ARRANQUE" : "APAGADO")} enviada al PLC para {name}.";
+            IsStatusSuccess = true;
+            await RefreshTelemetryAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error al enviar comando a {name}: {ex.Message}";
+            IsStatusSuccess = false;
+        }
+    }
+
+    private async Task ExecuteEmergencyStopAsync()
+    {
+        try
+        {
+            await Api.SendCommandAsync("bomba_principal", "stop", cts?.Token ?? CancellationToken.None);
+            await Api.SendCommandAsync("dosificador_sulfato", "stop", cts?.Token ?? CancellationToken.None);
+            await Api.SendCommandAsync("dosificador_cloro", "stop", cts?.Token ?? CancellationToken.None);
+
+            TypeSafe.RecordAudit(new AiAuditEntry
+            {
+                Chemical = "TODA LA PLANTA",
+                Action = "PARADA GENERAL DE EMERGENCIA",
+                Operator = "Técnico Operador (Toma de Control)",
+                DoseMgL = 0,
+                Details = "Parada manual inmediata de todos los actuadores ejecutada por baja confianza en SCADA.",
+                RawWaterConditions = "PARADA DE SEGURIDAD"
+            });
+
+            StatusMessage = "🚨 PARADA DE EMERGENCIA EJECUTADA: Bomba B1, Sulfato B2 y Cloro B3 apagados en el PLC.";
+            IsStatusSuccess = false;
+            await RefreshTelemetryAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error al ejecutar parada de emergencia: {ex.Message}";
+            IsStatusSuccess = false;
         }
     }
 
@@ -365,13 +555,13 @@
         var flow = Telemetry?.GetNumber("caudal_bomba_principal")?.ToString("F1") ?? "--";
 
         // Registrar en auditoría
-        Ai.RecordAudit(new AiAuditEntry
+        TypeSafe.RecordAudit(new AiAuditEntry
         {
             Chemical = suggestion.Chemical,
             Action = "Aprobado",
             Operator = "Operador Autorizado",
             DoseMgL = suggestion.SuggestedDoseMgL,
-            Details = $"Aprobada consigna de {suggestion.SuggestedDoseMgL} mg/L ({suggestion.SuggestedFrequencyHz} Hz) para {suggestion.TargetEquipment}.",
+            Details = $"Aprobada consigna de {suggestion.SuggestedDoseMgL} mg/L ({suggestion.SuggestedFrequencyHz} Hz) para {suggestion.TargetEquipment} (Confianza {suggestion.Confidence}).",
             RawWaterConditions = $"Turb. Cruda: {rawTurb} NTU, Caudal: {flow} L/min"
         });
 
@@ -398,7 +588,7 @@
         var rawTurb = Telemetry?.GetNumber("turbidez_agua_cruda")?.ToString("F1") ?? "--";
         var flow = Telemetry?.GetNumber("caudal_bomba_principal")?.ToString("F1") ?? "--";
 
-        Ai.RecordAudit(new AiAuditEntry
+        TypeSafe.RecordAudit(new AiAuditEntry
         {
             Chemical = suggestion.Chemical,
             Action = "Rechazado",
@@ -425,13 +615,13 @@
 
         try
         {
-            var history = ChatState.GetHistoryForCopilot();
-            var (response, action) = await Ai.AskCopilotAsync(userText, Telemetry, ActiveAlarms, history, cts?.Token ?? CancellationToken.None);
+            await Task.Delay(150); // Sensación fluida de proceso
+            var (response, action) = TypeSafe.ProcessCopilotQuery(userText, Telemetry, Evaluation);
             ChatState.ReplaceThinkingWithResponse(thinkingMsg, response, action);
         }
         catch (Exception ex)
         {
-            ChatState.ReplaceThinkingWithResponse(thinkingMsg, $"Error al consultar IA: {ex.Message}", null);
+            ChatState.ReplaceThinkingWithResponse(thinkingMsg, $"Error al consultar TypeSafe: {ex.Message}", null);
         }
         finally
         {
@@ -451,14 +641,14 @@
                 await Api.SendCommandAsync("dosificador_sulfato", "stop", cts?.Token ?? CancellationToken.None);
                 await Api.SendCommandAsync("dosificador_cloro", "stop", cts?.Token ?? CancellationToken.None);
 
-                Ai.RecordAudit(new AiAuditEntry
+                TypeSafe.RecordAudit(new AiAuditEntry
                 {
                     Chemical = "PLANTA GENERAL",
                     Action = "DESENERGIZACIÓN / STOP GENERAL",
-                    Operator = "Operador (Vía Copiloto IA)",
+                    Operator = "Operador (Vía Copiloto TypeSafe)",
                     DoseMgL = 0,
-                    Details = $"Orden interactiva de desenergización ejecutada: Bomba B1 y dosificadores apagados. Motivo: {action.Reason}",
-                    RawWaterConditions = "INSTRUCCIÓN VÍA PROMPT IA"
+                    Details = $"Orden de desenergización ejecutada: Bomba B1 y dosificadores apagados. Motivo: {action.Reason}",
+                    RawWaterConditions = "INSTRUCCIÓN VÍA PROMPT COPILOTO"
                 });
 
                 ChatState.AddAssistantMessage("✅ **[Orden Ejecutada en PLC]:** Se han desenergizado y apagado con éxito la **Bomba Principal B1**, el **Dosificador de Sulfato B2** y el **Dosificador de Cloro B3**.");
@@ -468,14 +658,14 @@
                 var cmd = action.ActionType == "START" ? "start" : "stop";
                 await Api.SendCommandAsync(action.TargetEquipment, cmd, cts?.Token ?? CancellationToken.None);
 
-                Ai.RecordAudit(new AiAuditEntry
+                TypeSafe.RecordAudit(new AiAuditEntry
                 {
                     Chemical = action.EquipmentName,
-                    Action = action.ActionType == "START" ? "Arranque IA" : "Apagado IA",
-                    Operator = "Operador (Vía Copiloto IA)",
+                    Action = action.ActionType == "START" ? "Arranque SCADA" : "Apagado SCADA",
+                    Operator = "Operador (Vía Copiloto TypeSafe)",
                     DoseMgL = 0,
                     Details = $"Orden interactiva de {action.ActionType} ejecutada para {action.EquipmentName}. Motivo: {action.Reason}",
-                    RawWaterConditions = "INSTRUCCIÓN VÍA PROMPT IA"
+                    RawWaterConditions = "INSTRUCCIÓN VÍA PROMPT COPILOTO"
                 });
 
                 ChatState.AddAssistantMessage($"✅ **[Orden Ejecutada en PLC]:** Se ha transmitido con éxito la orden de **{action.ActionType}** para **{action.EquipmentName}** al PLC Siemens S7-1200.");
@@ -525,17 +715,21 @@
         _ => "critico"
     };
 
+    private static string GetConfidenceClass(string confidence) => confidence.ToLowerInvariant() switch
+    {
+        "alta" => "alta",
+        "media" => "media",
+        _ => "baja"
+    };
+
     private static string FormatMarkdown(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
         
-        // Formato básico amigable para HTML
         var html = System.Net.WebUtility.HtmlEncode(raw);
         html = html.Replace("\n", "<br/>");
         
-        // Negrita: **texto**
         html = System.Text.RegularExpressions.Regex.Replace(html, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
-        // Cursiva: *texto*
         html = System.Text.RegularExpressions.Regex.Replace(html, @"\*(.+?)\*", "<em>$1</em>");
         
         return html;

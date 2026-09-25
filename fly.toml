@@ -12,6 +12,8 @@ primary_region = 'iad'
   ASPNETCORE_URLS = 'http://+:8080'
   HostSettings__PublicDomain = 'https://hidrocontrol.potenzia.app'
   Auth__DbPath = '/data/hidrocontrol-auth.db'
+  TYPESAFE_API_KEY = 'apikey_253086703297f524d75b2452dcae9ba372f_465221ede5583ab8863220110d5525c83bfe7e86a17553ea1677f20af4427269'
+
 
 [mounts]
   source = 'hidrocontrol_data'

@@ -1,5 +1,5 @@
 @page "/simulador"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Simulador,Demo,Operador,Administrador")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Simulador,Demo")]
 @rendermode InteractiveServer
 @using PTAPControl.Services
 @using PTAPControl.Models
@@ -17,11 +17,6 @@
             <p class="page-subtitle">
                 Modifica en tiempo real los sensores y actuadores como si estuvieras manipulando el agua y el tablero eléctrico de la planta.
             </p>
-        </div>
-        <div class="header-actions">
-            <a href="" class="btn-goto-scada">
-                📊 Ver Mímico SCADA
-            </a>
         </div>
     </div>
 

@@ -1,35 +1,53 @@
 @page "/historicos"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Operador,Gerente")]
 @rendermode InteractiveServer
 @using PTAPControl.Models
 @using PTAPControl.Services
 @inject NodeRedApiClient Api
 
-<PageTitle>Historicos</PageTitle>
+<PageTitle>Históricos y Tendencias — HIDROCONTROL PTAP</PageTitle>
 
 <section class="history-page">
     <header class="scada-header">
         <div>
-            <p class="eyebrow">HIDROCONTROL PTAP</p>
-            <h1>Curvas historicas</h1>
+            <p class="eyebrow">HIDROCONTROL PTAP &bull; TELEMETRÍA Y CALIDAD</p>
+            <h1>Curvas Históricas de Proceso</h1>
         </div>
         <div class="header-actions">
-            <a class="refresh-button download-link" href="@CsvHref" download="hidrocontrol-historicos.csv">Descargar CSV</a>
-            <button class="refresh-button" @onclick="LoadAsync">Actualizar</button>
+            <a class="refresh-button download-link" href="@CsvHref" download="hidrocontrol-historicos.csv">
+                📥 Descargar CSV
+            </a>
+            <button class="refresh-button" @onclick="LoadAsync">
+                🔄 Actualizar
+            </button>
         </div>
     </header>
 
-    <div class="history-toolbar">
-        <label>
-            Rango
-            <select @bind="SelectedRangeMinutes">
-                <option value="60">Ultima hora</option>
-                <option value="180">Ultimas 3 horas</option>
-                <option value="720">Ultimas 12 horas</option>
-                <option value="1440">Ultimas 24 horas</option>
-            </select>
-        </label>
-        <button class="refresh-button" @onclick="LoadAsync">Consultar</button>
+    <!-- Barra de control y filtrado temporal -->
+    <div class="history-toolbar-card">
+        <div class="toolbar-left">
+            <span class="toolbar-label">⏱️ Ventana de Tiempo:</span>
+            <div class="range-buttons-group">
+                <button type="button" class="btn-range @(SelectedRangeMinutes == 60 ? "active" : "")" 
+                        @onclick="() => SetRange(60)">1 Hora</button>
+                <button type="button" class="btn-range @(SelectedRangeMinutes == 180 ? "active" : "")" 
+                        @onclick="() => SetRange(180)">3 Horas</button>
+                <button type="button" class="btn-range @(SelectedRangeMinutes == 720 ? "active" : "")" 
+                        @onclick="() => SetRange(720)">12 Horas</button>
+                <button type="button" class="btn-range @(SelectedRangeMinutes == 1440 ? "active" : "")" 
+                        @onclick="() => SetRange(1440)">24 Horas</button>
+            </div>
+        </div>
+        <div class="toolbar-right">
+            <div class="toolbar-stat">
+                <span class="stat-name">Muestras Registradas:</span>
+                <strong class="stat-val">@RecentPoints.Count pts</strong>
+            </div>
+            <div class="toolbar-stat">
+                <span class="stat-name">Período:</span>
+                <strong class="stat-val">@RangeStartText — @RangeEndText</strong>
+            </div>
+        </div>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(ErrorMessage))
@@ -37,181 +55,236 @@
         <div class="alert-line">@ErrorMessage</div>
     }
 
+    <!-- 1. GRÁFICA: AGUA CRUDA -->
     <section class="trend-panel">
         <div class="trend-head">
-            <div>
-                <h2>Agua cruda</h2>
-                <span>@CurveSubtitle(RawSeries)</span>
+            <div class="trend-title-group">
+                <div class="badge-stage badge-cruda">ETAPA ENTRADA</div>
+                <h2>💧 Calidad de Agua Cruda</h2>
+                <span class="trend-subtitle">@CurveSubtitle(RawSeries) &bull; Monitoreo continuo a la entrada de planta</span>
             </div>
             <div class="trend-legend">
                 @foreach (var series in RawSeries)
                 {
-                    <span><i style="background:@series.Color"></i>@series.Label</span>
+                    <div class="legend-card" style="border-left-color: @series.Color">
+                        <span class="legend-dot" style="background: @series.Color"></span>
+                        <div class="legend-info">
+                            <span class="legend-label">@series.Label</span>
+                            <strong class="legend-value" style="color: @series.Color">@GetLatestValue(series.Tag)</strong>
+                        </div>
+                    </div>
                 }
             </div>
         </div>
 
-        <svg class="trend-chart" viewBox="0 0 1000 360" role="img" aria-label="Curvas historicas de calidad">
-            <!-- Background panel -->
-            <rect x="120" y="24" width="760" height="286" fill="rgba(17, 31, 39, 0.4)" rx="4" />
+        <svg class="trend-chart" viewBox="0 0 1060 360" role="img" aria-label="Curvas historicas de agua cruda">
+            <defs>
+                <linearGradient id="plotBgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#0b1622" />
+                    <stop offset="100%" stop-color="#080e15" />
+                </linearGradient>
+            </defs>
 
-            <!-- Grid lines -->
+            <!-- Área de trazado -->
+            <rect x="150" y="30" width="780" height="280" fill="url(#plotBgGrad)" stroke="rgba(78, 200, 216, 0.2)" stroke-width="1" rx="6" />
+
+            <!-- Líneas de cuadrícula horizontal (5 niveles) -->
             @for (var i = 0; i < 5; i++)
             {
-                var y = 24 + (i * 71.5);
-                <line x1="120" y1="@y.ToString("0.###", Culture)" x2="880" y2="@y.ToString("0.###", Culture)" class="chart-grid" />
+                var y = 30 + (i * 70.0);
+                <line x1="150" y1="@y.ToString("0.#", Culture)" x2="930" y2="@y.ToString("0.#", Culture)" 
+                      stroke="rgba(255, 255, 255, 0.06)" stroke-dasharray="4 4" stroke-width="1" />
             }
+
+            <!-- Líneas de cuadrícula vertical (5 divisiones temporales) -->
             @for (var i = 0; i <= 4; i++)
             {
-                var x = 120 + (i * 190);
-                <line x1="@x" y1="24" x2="@x" y2="310" class="chart-grid chart-grid-vertical" />
+                var x = 150 + (i * 195.0);
+                <line x1="@x.ToString("0.#", Culture)" y1="30" x2="@x.ToString("0.#", Culture)" y2="310" 
+                      stroke="rgba(255, 255, 255, 0.04)" stroke-width="1" />
             }
 
-            <!-- Axis 1: pH (x = 45) -->
-            <line x1="45" y1="24" x2="45" y2="310" stroke="#4ec8d8" stroke-width="1.5" />
-            <text x="38" y="29" fill="#4ec8d8" font-size="12" text-anchor="end" font-weight="bold">14.0</text>
-            <text x="38" y="100.5" fill="#4ec8d8" font-size="12" text-anchor="end" font-weight="bold">10.5</text>
-            <text x="38" y="172" fill="#4ec8d8" font-size="12" text-anchor="end" font-weight="bold">7.0</text>
-            <text x="38" y="243.5" fill="#4ec8d8" font-size="12" text-anchor="end" font-weight="bold">3.5</text>
-            <text x="38" y="315" fill="#4ec8d8" font-size="12" text-anchor="end" font-weight="bold">0.0</text>
-            <text x="15" y="167" fill="#4ec8d8" font-size="11" text-anchor="middle" transform="rotate(-90 15 167)" font-weight="bold">pH</text>
+            <!-- EJE 1 IZQUIERDA: pH (x = 55) -->
+            <line x1="55" y1="30" x2="55" y2="310" stroke="#38bdf8" stroke-width="1.5" />
+            <text x="47" y="34" fill="#38bdf8" font-size="11" text-anchor="end" font-weight="700">14.0</text>
+            <text x="47" y="104" fill="#38bdf8" font-size="11" text-anchor="end" font-weight="700">10.5</text>
+            <text x="47" y="174" fill="#38bdf8" font-size="11" text-anchor="end" font-weight="700">7.0</text>
+            <text x="47" y="244" fill="#38bdf8" font-size="11" text-anchor="end" font-weight="700">3.5</text>
+            <text x="47" y="314" fill="#38bdf8" font-size="11" text-anchor="end" font-weight="700">0.0</text>
+            <text x="16" y="170" fill="#38bdf8" font-size="11" text-anchor="middle" transform="rotate(-90 16 170)" font-weight="800" letter-spacing="0.05em">pH (0 - 14)</text>
 
-            <!-- Axis 2: Conductividad (x = 90) -->
-            <line x1="90" y1="24" x2="90" y2="310" stroke="#48d597" stroke-width="1.5" />
-            <text x="83" y="29" fill="#48d597" font-size="11" text-anchor="end" font-weight="bold">2000</text>
-            <text x="83" y="100.5" fill="#48d597" font-size="11" text-anchor="end" font-weight="bold">1500</text>
-            <text x="83" y="172" fill="#48d597" font-size="11" text-anchor="end" font-weight="bold">1000</text>
-            <text x="83" y="243.5" fill="#48d597" font-size="11" text-anchor="end" font-weight="bold">500</text>
-            <text x="83" y="315" fill="#48d597" font-size="11" text-anchor="end" font-weight="bold">0</text>
-            <text x="65" y="167" fill="#48d597" font-size="10" text-anchor="middle" transform="rotate(-90 65 167)" font-weight="bold">uS/cm</text>
+            <!-- EJE 2 IZQUIERDA: Conductividad (x = 140) -->
+            <line x1="140" y1="30" x2="140" y2="310" stroke="#10b981" stroke-width="1.5" />
+            <text x="132" y="34" fill="#10b981" font-size="10.5" text-anchor="end" font-weight="700">2000</text>
+            <text x="132" y="104" fill="#10b981" font-size="10.5" text-anchor="end" font-weight="700">1500</text>
+            <text x="132" y="174" fill="#10b981" font-size="10.5" text-anchor="end" font-weight="700">1000</text>
+            <text x="132" y="244" fill="#10b981" font-size="10.5" text-anchor="end" font-weight="700">500</text>
+            <text x="132" y="314" fill="#10b981" font-size="10.5" text-anchor="end" font-weight="700">0</text>
+            <text x="76" y="170" fill="#10b981" font-size="11" text-anchor="middle" transform="rotate(-90 76 170)" font-weight="800" letter-spacing="0.05em">Conductividad (µS/cm)</text>
 
-            <!-- Axis 3: Turbidez (x = 920) -->
-            <line x1="920" y1="24" x2="920" y2="310" stroke="#e7c765" stroke-width="1.5" />
-            <text x="927" y="29" fill="#e7c765" font-size="11" text-anchor="start" font-weight="bold">100</text>
-            <text x="927" y="100.5" fill="#e7c765" font-size="11" text-anchor="start" font-weight="bold">75</text>
-            <text x="927" y="172" fill="#e7c765" font-size="11" text-anchor="start" font-weight="bold">50</text>
-            <text x="927" y="243.5" fill="#e7c765" font-size="11" text-anchor="start" font-weight="bold">25</text>
-            <text x="927" y="315" fill="#e7c765" font-size="11" text-anchor="start" font-weight="bold">0</text>
-            <text x="965" y="167" fill="#e7c765" font-size="11" text-anchor="middle" transform="rotate(90 965 167)" font-weight="bold">Turbidez (NTU)</text>
+            <!-- EJE DERECHA: Turbidez (x = 940) -->
+            <line x1="940" y1="30" x2="940" y2="310" stroke="#f59e0b" stroke-width="1.5" />
+            <text x="948" y="34" fill="#f59e0b" font-size="11" text-anchor="start" font-weight="700">100</text>
+            <text x="948" y="104" fill="#f59e0b" font-size="11" text-anchor="start" font-weight="700">75</text>
+            <text x="948" y="174" fill="#f59e0b" font-size="11" text-anchor="start" font-weight="700">50</text>
+            <text x="948" y="244" fill="#f59e0b" font-size="11" text-anchor="start" font-weight="700">25</text>
+            <text x="948" y="314" fill="#f59e0b" font-size="11" text-anchor="start" font-weight="700">0</text>
+            <text x="1005" y="170" fill="#f59e0b" font-size="11" text-anchor="middle" transform="rotate(90 1005 170)" font-weight="800" letter-spacing="0.05em">Turbidez (NTU)</text>
 
-            <!-- Plot boundary -->
-            <rect x="120" y="24" width="760" height="286" fill="none" stroke="var(--line)" stroke-width="1" />
-
-            <!-- Curves -->
+            <!-- Trazado de Curvas -->
             @foreach (var series in RawSeries)
             {
                 var points = BuildPolyline(series.Tag);
                 if (!string.IsNullOrWhiteSpace(points))
                 {
-                    <polyline points="@points" fill="none" stroke="@series.Color" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                    <polyline points="@points" fill="none" stroke="@series.Color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
                 }
             }
 
-            <!-- Time labels -->
-            <text x="120" y="340" fill="var(--muted)" font-size="13" font-weight="bold">@RangeStartText</text>
-            <text x="880" y="340" fill="var(--muted)" font-size="13" text-anchor="end" font-weight="bold">@RangeEndText</text>
+            <!-- Marcas de tiempo en el eje inferior -->
+            <text x="150" y="334" fill="#94a3b8" font-size="11" font-weight="600" text-anchor="start">@RangeStartText</text>
+            <text x="345" y="334" fill="#64748b" font-size="10.5" font-weight="500" text-anchor="middle">@GetTimeAt(0.25)</text>
+            <text x="540" y="334" fill="#64748b" font-size="10.5" font-weight="500" text-anchor="middle">@GetTimeAt(0.50)</text>
+            <text x="735" y="334" fill="#64748b" font-size="10.5" font-weight="500" text-anchor="middle">@GetTimeAt(0.75)</text>
+            <text x="930" y="334" fill="#94a3b8" font-size="11" font-weight="600" text-anchor="end">@RangeEndText</text>
         </svg>
     </section>
 
+    <!-- 2. GRÁFICA: AGUA TRATADA -->
     <section class="trend-panel">
         <div class="trend-head">
-            <div>
-                <h2>Agua tratada</h2>
-                <span>@CurveSubtitle(TreatedSeries)</span>
+            <div class="trend-title-group">
+                <div class="badge-stage badge-tratada">ETAPA SALIDA</div>
+                <h2>✨ Calidad de Agua Tratada</h2>
+                <span class="trend-subtitle">@CurveSubtitle(TreatedSeries) &bull; Cumplimiento normativo y salida al tanque final</span>
             </div>
             <div class="trend-legend">
                 @foreach (var series in TreatedSeries)
                 {
-                    <span><i style="background:@series.Color"></i>@series.Label</span>
+                    <div class="legend-card" style="border-left-color: @series.Color">
+                        <span class="legend-dot" style="background: @series.Color"></span>
+                        <div class="legend-info">
+                            <span class="legend-label">@series.Label</span>
+                            <strong class="legend-value" style="color: @series.Color">@GetLatestValue(series.Tag)</strong>
+                        </div>
+                    </div>
                 }
             </div>
         </div>
 
-        <svg class="trend-chart" viewBox="0 0 1000 360" role="img" aria-label="Curvas historicas de agua tratada">
-            <!-- Background panel -->
-            <rect x="120" y="24" width="760" height="286" fill="rgba(17, 31, 39, 0.4)" rx="4" />
+        <svg class="trend-chart" viewBox="0 0 1060 360" role="img" aria-label="Curvas historicas de agua tratada">
+            <!-- Área de trazado -->
+            <rect x="150" y="30" width="780" height="280" fill="url(#plotBgGrad)" stroke="rgba(78, 200, 216, 0.2)" stroke-width="1" rx="6" />
 
-            <!-- Grid lines -->
+            <!-- Líneas de cuadrícula horizontal (5 niveles) -->
             @for (var i = 0; i < 5; i++)
             {
-                var y = 24 + (i * 71.5);
-                <line x1="120" y1="@y.ToString("0.###", Culture)" x2="880" y2="@y.ToString("0.###", Culture)" class="chart-grid" />
+                var y = 30 + (i * 70.0);
+                <line x1="150" y1="@y.ToString("0.#", Culture)" x2="930" y2="@y.ToString("0.#", Culture)" 
+                      stroke="rgba(255, 255, 255, 0.06)" stroke-dasharray="4 4" stroke-width="1" />
             }
+
+            <!-- Líneas de cuadrícula vertical (5 divisiones temporales) -->
             @for (var i = 0; i <= 4; i++)
             {
-                var x = 120 + (i * 190);
-                <line x1="@x" y1="24" x2="@x" y2="310" class="chart-grid chart-grid-vertical" />
+                var x = 150 + (i * 195.0);
+                <line x1="@x.ToString("0.#", Culture)" y1="30" x2="@x.ToString("0.#", Culture)" y2="310" 
+                      stroke="rgba(255, 255, 255, 0.04)" stroke-width="1" />
             }
 
-            <!-- Axis 1: pH (x = 45) -->
-            <line x1="45" y1="24" x2="45" y2="310" stroke="#8bc6ff" stroke-width="1.5" />
-            <text x="38" y="29" fill="#8bc6ff" font-size="12" text-anchor="end" font-weight="bold">14.0</text>
-            <text x="38" y="100.5" fill="#8bc6ff" font-size="12" text-anchor="end" font-weight="bold">10.5</text>
-            <text x="38" y="172" fill="#8bc6ff" font-size="12" text-anchor="end" font-weight="bold">7.0</text>
-            <text x="38" y="243.5" fill="#8bc6ff" font-size="12" text-anchor="end" font-weight="bold">3.5</text>
-            <text x="38" y="315" fill="#8bc6ff" font-size="12" text-anchor="end" font-weight="bold">0.0</text>
-            <text x="15" y="167" fill="#8bc6ff" font-size="11" text-anchor="middle" transform="rotate(-90 15 167)" font-weight="bold">pH</text>
+            <!-- EJE 1 IZQUIERDA: pH (x = 55) -->
+            <line x1="55" y1="30" x2="55" y2="310" stroke="#60a5fa" stroke-width="1.5" />
+            <text x="47" y="34" fill="#60a5fa" font-size="11" text-anchor="end" font-weight="700">14.0</text>
+            <text x="47" y="104" fill="#60a5fa" font-size="11" text-anchor="end" font-weight="700">10.5</text>
+            <text x="47" y="174" fill="#60a5fa" font-size="11" text-anchor="end" font-weight="700">7.0</text>
+            <text x="47" y="244" fill="#60a5fa" font-size="11" text-anchor="end" font-weight="700">3.5</text>
+            <text x="47" y="314" fill="#60a5fa" font-size="11" text-anchor="end" font-weight="700">0.0</text>
+            <text x="16" y="170" fill="#60a5fa" font-size="11" text-anchor="middle" transform="rotate(-90 16 170)" font-weight="800" letter-spacing="0.05em">pH (0 - 14)</text>
 
-            <!-- Axis 2: Conductividad (x = 90) -->
-            <line x1="90" y1="24" x2="90" y2="310" stroke="#c792ea" stroke-width="1.5" />
-            <text x="83" y="29" fill="#c792ea" font-size="11" text-anchor="end" font-weight="bold">2000</text>
-            <text x="83" y="100.5" fill="#c792ea" font-size="11" text-anchor="end" font-weight="bold">1500</text>
-            <text x="83" y="172" fill="#c792ea" font-size="11" text-anchor="end" font-weight="bold">1000</text>
-            <text x="83" y="243.5" fill="#c792ea" font-size="11" text-anchor="end" font-weight="bold">500</text>
-            <text x="83" y="315" fill="#c792ea" font-size="11" text-anchor="end" font-weight="bold">0</text>
-            <text x="65" y="167" fill="#c792ea" font-size="10" text-anchor="middle" transform="rotate(-90 65 167)" font-weight="bold">uS/cm</text>
+            <!-- EJE 2 IZQUIERDA: Conductividad (x = 140) -->
+            <line x1="140" y1="30" x2="140" y2="310" stroke="#a78bfa" stroke-width="1.5" />
+            <text x="132" y="34" fill="#a78bfa" font-size="10.5" text-anchor="end" font-weight="700">2000</text>
+            <text x="132" y="104" fill="#a78bfa" font-size="10.5" text-anchor="end" font-weight="700">1500</text>
+            <text x="132" y="174" fill="#a78bfa" font-size="10.5" text-anchor="end" font-weight="700">1000</text>
+            <text x="132" y="244" fill="#a78bfa" font-size="10.5" text-anchor="end" font-weight="700">500</text>
+            <text x="132" y="314" fill="#a78bfa" font-size="10.5" text-anchor="end" font-weight="700">0</text>
+            <text x="76" y="170" fill="#a78bfa" font-size="11" text-anchor="middle" transform="rotate(-90 76 170)" font-weight="800" letter-spacing="0.05em">Conductividad (µS/cm)</text>
 
-            <!-- Axis 3: Turbidez (x = 920) -->
-            <line x1="920" y1="24" x2="920" y2="310" stroke="#ff9d66" stroke-width="1.5" />
-            <text x="927" y="29" fill="#ff9d66" font-size="11" text-anchor="start" font-weight="bold">100</text>
-            <text x="927" y="100.5" fill="#ff9d66" font-size="11" text-anchor="start" font-weight="bold">75</text>
-            <text x="927" y="172" fill="#ff9d66" font-size="11" text-anchor="start" font-weight="bold">50</text>
-            <text x="927" y="243.5" fill="#ff9d66" font-size="11" text-anchor="start" font-weight="bold">25</text>
-            <text x="927" y="315" fill="#ff9d66" font-size="11" text-anchor="start" font-weight="bold">0</text>
-            <text x="965" y="167" fill="#ff9d66" font-size="11" text-anchor="middle" transform="rotate(90 965 167)" font-weight="bold">Turbidez (NTU)</text>
+            <!-- EJE DERECHA: Turbidez (x = 940) -->
+            <line x1="940" y1="30" x2="940" y2="310" stroke="#fb923c" stroke-width="1.5" />
+            <text x="948" y="34" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">100</text>
+            <text x="948" y="104" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">75</text>
+            <text x="948" y="174" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">50</text>
+            <text x="948" y="244" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">25</text>
+            <text x="948" y="314" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">0</text>
+            <text x="1005" y="170" fill="#fb923c" font-size="11" text-anchor="middle" transform="rotate(90 1005 170)" font-weight="800" letter-spacing="0.05em">Turbidez (NTU)</text>
 
-            <!-- Plot boundary -->
-            <rect x="120" y="24" width="760" height="286" fill="none" stroke="var(--line)" stroke-width="1" />
-
-            <!-- Curves -->
+            <!-- Trazado de Curvas -->
             @foreach (var series in TreatedSeries)
             {
                 var points = BuildPolyline(series.Tag);
                 if (!string.IsNullOrWhiteSpace(points))
                 {
-                    <polyline points="@points" fill="none" stroke="@series.Color" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                    <polyline points="@points" fill="none" stroke="@series.Color" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
                 }
             }
 
-            <!-- Time labels -->
-            <text x="120" y="340" fill="var(--muted)" font-size="13" font-weight="bold">@RangeStartText</text>
-            <text x="880" y="340" fill="var(--muted)" font-size="13" text-anchor="end" font-weight="bold">@RangeEndText</text>
+            <!-- Marcas de tiempo en el eje inferior -->
+            <text x="150" y="334" fill="#94a3b8" font-size="11" font-weight="600" text-anchor="start">@RangeStartText</text>
+            <text x="345" y="334" fill="#64748b" font-size="10.5" font-weight="500" text-anchor="middle">@GetTimeAt(0.25)</text>
+            <text x="540" y="334" fill="#64748b" font-size="10.5" font-weight="500" text-anchor="middle">@GetTimeAt(0.50)</text>
+            <text x="735" y="334" fill="#64748b" font-size="10.5" font-weight="500" text-anchor="middle">@GetTimeAt(0.75)</text>
+            <text x="930" y="334" fill="#94a3b8" font-size="11" font-weight="600" text-anchor="end">@RangeEndText</text>
         </svg>
     </section>
 
-    <table class="history-table">
-        <thead>
-            <tr>
-                <th>Fecha</th>
-                <th>Tag</th>
-                <th>Valor</th>
-                <th>Unidad</th>
-                <th>Calidad</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in RecentPoints.Take(80))
-            {
+    <!-- Tabla de telemetría reciente -->
+    <div class="table-container-card">
+        <div class="table-header-title">
+            <h3>📑 Registro Reciente de Puntos de Calidad</h3>
+            <span class="table-subtitle">Últimas 60 muestras ordenadas cronológicamente</span>
+        </div>
+        <table class="history-table">
+            <thead>
                 <tr>
-                    <td>@item.RecordedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                    <td>@item.TagId</td>
-                    <td>@item.ValueNumeric.ToString("0.###")</td>
-                    <td>@item.Unit</td>
-                    <td>@item.Quality</td>
+                    <th>Fecha / Hora</th>
+                    <th>Variable (Tag)</th>
+                    <th>Valor Numérico</th>
+                    <th>Unidad</th>
+                    <th>Estado de Calidad</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var item in RecentPoints.Take(60))
+                {
+                    var series = GetSeriesInfo(item.TagId);
+                    var color = series?.Color ?? "#38bdf8";
+                    var label = series?.Label ?? item.TagId;
+                    var unit = !string.IsNullOrWhiteSpace(item.Unit) 
+                        ? item.Unit 
+                        : (item.TagId.StartsWith("ph_") ? "pH" : (item.TagId.StartsWith("turbidez_") ? "NTU" : "µS/cm"));
+
+                    <tr>
+                        <td class="col-time">@item.RecordedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td class="col-tag">
+                            <span class="tag-pill" style="border-color: @color; color: @color; background: @GetTransparentColor(color, 0.12);">
+                                <span class="tag-bullet" style="background: @color;"></span>
+                                <span class="tag-title">@label</span>
+                                <code class="tag-code">@item.TagId</code>
+                            </span>
+                        </td>
+                        <td class="col-val"><strong style="color: @color;">@item.ValueNumeric.ToString("0.##")</strong></td>
+                        <td class="col-unit"><span class="unit-pill">@unit</span></td>
+                        <td class="col-quality">
+                            <span class="quality-badge @(item.Quality == "GOOD" ? "quality-good" : "quality-bad")">
+                                @(item.Quality == "GOOD" ? "✓ NORMAL" : item.Quality)
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 </section>
 
 @code {
@@ -222,31 +295,71 @@
 
     private readonly List<TrendSeries> RawSeries =
     [
-        new("ph_agua_cruda", "pH cruda", "#4ec8d8"),
-        new("turbidez_agua_cruda", "Turbidez cruda", "#e7c765"),
-        new("conductividad_agua_cruda", "Conductividad cruda", "#48d597")
+        new("ph_agua_cruda", "pH Cruda", "#38bdf8"),
+        new("turbidez_agua_cruda", "Turbidez Cruda", "#f59e0b"),
+        new("conductividad_agua_cruda", "Conductividad Cruda", "#10b981")
     ];
 
     private readonly List<TrendSeries> TreatedSeries =
     [
-        new("ph_agua_tratada", "pH tratada", "#8bc6ff"),
-        new("turbidez_agua_tratada", "Turbidez tratada", "#ff9d66"),
-        new("conductividad_agua_tratada", "Conductividad tratada", "#c792ea")
+        new("ph_agua_tratada", "pH Tratada", "#60a5fa"),
+        new("turbidez_agua_tratada", "Turbidez Tratada", "#fb923c"),
+        new("conductividad_agua_tratada", "Conductividad Tratada", "#a78bfa")
     ];
 
     private DateTimeOffset RangeEnd => DateTimeOffset.Now;
     private DateTimeOffset RangeStart => RangeEnd.AddMinutes(-SelectedRangeMinutes);
     private string RangeStartText => RangeStart.ToLocalTime().ToString("HH:mm");
     private string RangeEndText => RangeEnd.ToLocalTime().ToString("HH:mm");
+
+    private string GetTimeAt(double ratio)
+    {
+        var totalMs = (RangeEnd - RangeStart).TotalMilliseconds;
+        var t = RangeStart.AddMilliseconds(totalMs * ratio);
+        return t.ToLocalTime().ToString("HH:mm");
+    }
+
     private string CurveSubtitle(IEnumerable<TrendSeries> series)
     {
         var tags = series.Select(item => item.Tag).ToHashSet();
         var count = RecentPoints.Count(point => tags.Contains(point.TagId));
-        return $"{count} puntos en los ultimos {SelectedRangeMinutes} minutos";
+        return $"{count:N0} muestras analizadas";
     }
+
+    private string GetLatestValue(string tag)
+    {
+        var point = RecentPoints.FirstOrDefault(p => p.TagId == tag);
+        if (point is null) return "--";
+        if (tag.StartsWith("ph_")) return $"{point.ValueNumeric:F2} pH";
+        if (tag.StartsWith("turbidez_")) return $"{point.ValueNumeric:F1} NTU";
+        if (tag.StartsWith("conductividad_")) return $"{point.ValueNumeric:F0} µS/cm";
+        return point.ValueNumeric.ToString("0.##");
+    }
+
+    private TrendSeries? GetSeriesInfo(string tag) =>
+        RawSeries.FirstOrDefault(s => s.Tag == tag) ?? TreatedSeries.FirstOrDefault(s => s.Tag == tag);
+
+    private static string GetTransparentColor(string hex, double alpha)
+    {
+        if (hex.StartsWith("#") && hex.Length == 7)
+        {
+            int r = Convert.ToInt32(hex.Substring(1, 2), 16);
+            int g = Convert.ToInt32(hex.Substring(3, 2), 16);
+            int b = Convert.ToInt32(hex.Substring(5, 2), 16);
+            return $"rgba({r}, {g}, {b}, {alpha.ToString(Culture)})";
+        }
+        return hex;
+    }
+
     private string CsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(BuildCsv());
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task SetRange(int minutes)
+    {
+        SelectedRangeMinutes = minutes;
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -266,25 +379,56 @@
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"No se pudieron cargar historicos: {ex.Message}";
+            ErrorMessage = $"No se pudieron cargar históricos: {ex.Message}";
         }
     }
 
     private string BuildPolyline(string tag)
     {
-        var points = RecentPoints
+        var rawPoints = RecentPoints
             .Where(p => p.TagId == tag)
             .OrderBy(p => p.RecordedAt)
             .ToList();
 
-        if (points.Count < 2)
+        if (rawPoints.Count < 2)
         {
             return string.Empty;
         }
 
+        // 1. Suavizado por media móvil (ventana de 5 puntos) para remover el jitter de alta frecuencia
+        int window = Math.Min(5, rawPoints.Count);
+        var smoothed = new List<(DateTimeOffset Time, double Value)>(rawPoints.Count);
+        for (int i = 0; i < rawPoints.Count; i++)
+        {
+            int start = Math.Max(0, i - window / 2);
+            int count = Math.Min(rawPoints.Count - start, window);
+            double avg = rawPoints.Skip(start).Take(count).Average(p => (double)p.ValueNumeric);
+            smoothed.Add((rawPoints[i].RecordedAt, avg));
+        }
+
+        // 2. Muestreo inteligente a máximo 220 puntos para trazado vectorial nítido
+        int maxPoints = 220;
+        List<(DateTimeOffset Time, double Value)> finalPoints;
+        if (smoothed.Count > maxPoints)
+        {
+            double step = (double)(smoothed.Count - 1) / (maxPoints - 1);
+            finalPoints = new List<(DateTimeOffset, double)>(maxPoints);
+            for (int i = 0; i < maxPoints; i++)
+            {
+                int idx = (int)Math.Round(i * step);
+                if (idx >= smoothed.Count) idx = smoothed.Count - 1;
+                finalPoints.Add(smoothed[idx]);
+            }
+        }
+        else
+        {
+            finalPoints = smoothed;
+        }
+
         var minTime = RangeStart.ToUnixTimeMilliseconds();
         var maxTime = RangeEnd.ToUnixTimeMilliseconds();
-        
+        if (maxTime <= minTime) maxTime = minTime + 1;
+
         double minValue = 0;
         double maxValue = 100;
 
@@ -303,20 +447,20 @@
             minValue = 0;
             maxValue = 100;
         }
-        else
-        {
-            minValue = points.Min(p => (double)p.ValueNumeric);
-            maxValue = points.Max(p => (double)p.ValueNumeric);
-            if (Math.Abs(maxValue - minValue) < 0.0001) maxValue = minValue + 1;
-        }
 
-        return string.Join(" ", points.Select(point =>
+        const double plotLeft = 150;
+        const double plotWidth = 780;
+        const double plotTop = 30;
+        const double plotHeight = 280;
+        const double plotBottom = plotTop + plotHeight; // 310
+
+        return string.Join(" ", finalPoints.Select(p =>
         {
-            var timeRatio = (point.RecordedAt.ToUnixTimeMilliseconds() - minTime) / (double)(maxTime - minTime);
-            var valueRatio = ((double)point.ValueNumeric - minValue) / (maxValue - minValue);
-            var x = 120 + Math.Clamp(timeRatio, 0, 1) * 760;
-            var y = 310 - Math.Clamp(valueRatio, 0, 1) * 286;
-            return $"{x.ToString("0.###", Culture)},{y.ToString("0.###", Culture)}";
+            var timeRatio = (p.Time.ToUnixTimeMilliseconds() - minTime) / (double)(maxTime - minTime);
+            var valueRatio = (p.Value - minValue) / (maxValue - minValue);
+            var x = plotLeft + Math.Clamp(timeRatio, 0, 1) * plotWidth;
+            var y = plotBottom - Math.Clamp(valueRatio, 0, 1) * plotHeight;
+            return $"{x.ToString("0.##", Culture)},{y.ToString("0.##", Culture)}";
         }));
     }
 
@@ -331,3 +475,377 @@
 
     private sealed record TrendSeries(string Tag, string Label, string Color);
 }
+
+<style>
+.history-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding-bottom: 2.5rem;
+}
+
+/* Tarjeta de barra de herramientas */
+.history-toolbar-card {
+    background: #0d1822;
+    border: 1px solid rgba(78, 200, 216, 0.2);
+    border-radius: 12px;
+    padding: 1rem 1.4rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.toolbar-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #cbd5e1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.range-buttons-group {
+    display: flex;
+    gap: 0.4rem;
+    background: #060e15;
+    padding: 0.25rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn-range {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-range:hover {
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-range.active {
+    background: #0284c7;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4);
+}
+
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.toolbar-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.15rem;
+}
+
+.stat-name {
+    font-size: 0.72rem;
+    color: #7b949f;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.stat-val {
+    font-size: 0.9rem;
+    color: #38bdf8;
+    font-weight: 700;
+    font-family: monospace;
+}
+
+/* Panel de Curvas */
+.trend-panel {
+    background: #0d1822;
+    border: 1px solid rgba(78, 200, 216, 0.2);
+    border-radius: 12px;
+    padding: 1.4rem;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.trend-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.trend-title-group h2 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #f1f5f9;
+    margin: 0.2rem 0;
+    letter-spacing: -0.01em;
+}
+
+.badge-stage {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    margin-bottom: 0.15rem;
+}
+
+.badge-cruda {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.badge-tratada {
+    background: rgba(167, 139, 250, 0.15);
+    color: #a78bfa;
+    border: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+.trend-subtitle {
+    font-size: 0.78rem;
+    color: #7b949f;
+}
+
+.trend-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.legend-card {
+    background: #09131c;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left-width: 3.5px;
+    border-radius: 8px;
+    padding: 0.45rem 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px currentColor;
+}
+
+.legend-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.legend-label {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.legend-value {
+    font-size: 0.88rem;
+    font-weight: 800;
+    font-family: monospace;
+}
+
+.trend-chart {
+    width: 100%;
+    height: auto;
+    min-height: 280px;
+    border-radius: 6px;
+    display: block;
+}
+
+/* Tabla de Históricos */
+.table-container-card {
+    background: #0d1822;
+    border: 1px solid rgba(78, 200, 216, 0.2);
+    border-radius: 12px;
+    padding: 1.4rem;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.table-header-title {
+    margin-bottom: 1rem;
+}
+
+.table-header-title h3 {
+    font-size: 1.1rem;
+    color: #f1f5f9;
+    font-weight: 700;
+    margin: 0 0 0.2rem 0;
+}
+
+.table-subtitle {
+    font-size: 0.78rem;
+    color: #7b949f;
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+}
+
+.history-table th {
+    background: #09131c;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(78, 200, 216, 0.2);
+}
+
+.history-table td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.history-table tr:hover td {
+    background: rgba(56, 189, 248, 0.04);
+}
+
+.col-time {
+    font-family: monospace;
+    color: #94a3b8;
+    font-size: 0.8rem;
+}
+
+.col-tag {
+    white-space: nowrap;
+}
+
+.tag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border-width: 1px;
+    border-style: solid;
+    width: fit-content;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.tag-bullet {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px currentColor;
+}
+
+.tag-title {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.tag-code {
+    font-family: monospace;
+    font-size: 0.7rem;
+    opacity: 0.8;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    margin-left: 0.2rem;
+    color: inherit;
+}
+
+.col-val {
+    font-family: monospace;
+    font-size: 0.95rem;
+}
+
+.col-unit {
+    font-size: 0.8rem;
+}
+
+.unit-pill {
+    color: #cbd5e1;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: monospace;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+}
+
+.quality-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    letter-spacing: 0.03em;
+}
+
+.quality-good {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.quality-bad {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+@@media (max-width: 768px) {
+    .history-toolbar-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .toolbar-left, .toolbar-right {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .range-buttons-group {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .toolbar-stat {
+        align-items: flex-start;
+    }
+    .trend-head {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .trend-legend {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+</style>

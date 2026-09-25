@@ -6,6 +6,7 @@
 @inject NodeRedApiClient Api
 
 @inject GeminiAiService Ai
+@inject TypeSafeAiClientService TypeSafe
 @inject PtapKnowledgeService Knowledge
 
 <PageTitle>Configuracion</PageTitle>
@@ -24,24 +25,24 @@
         <div class="alert-line">@StatusMessage</div>
     }
 
-    <!-- Panel de Gestión y Capacitación del Agente Local -->
-    <div class="panel-section" style="margin-bottom: 20px; border: 1px solid rgba(168, 85, 247, 0.4); background: rgba(28, 18, 48, 0.5);">
+    <!-- Panel de Gestión de Inteligencia Artificial (TypeSafe AI Jev) -->
+    <div class="panel-section" style="margin-bottom: 20px; border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(15, 23, 42, 0.65);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <div>
-                <h2 style="margin: 0; color: #f3e8ff; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
-                    <span>🧠</span>
-                    <span>Supervisor y Agente IA Local (Offline en PC)</span>
+                <h2 style="margin: 0; color: #f8fafc; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+                    <span>🛡️</span>
+                    <span>Motor de IA: TypeSafe AI (Jev System One)</span>
                 </h2>
                 <p style="margin: 4px 0 0 0; color: var(--muted); font-size: 0.86rem;">
-                    Ejecución 100% on-premise con Ollama, base de conocimiento de ingeniería y capacitación de reglas operativas.
+                    Decisiones probabilísticas estructuradas y factor de confianza calibrado para control SCADA de PTAP.
                 </p>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-                <span class="ai-status-badge @(OllamaStatus.IsOnline ? "optimo" : "atencion")">
-                    @(OllamaStatus.IsOnline ? "Ollama Conectado" : "Ollama Offline / Standby")
+                <span class="ai-status-badge @(TypeSafeStatus.IsOnline ? "optimo" : "atencion")">
+                    @(TypeSafeStatus.IsOnline ? "TypeSafe Conectado" : "TypeSafe Standby")
                 </span>
-                <button type="button" class="refresh-button" style="padding: 4px 10px; font-size: 0.8rem;" @onclick="CheckOllamaAsync">
-                    🔄 Probar Servidor Local
+                <button type="button" class="refresh-button" style="padding: 4px 10px; font-size: 0.8rem;" @onclick="CheckTypeSafeAsync">
+                    🔄 Probar Conexión TypeSafe
                 </button>
             </div>
         </div>
@@ -49,29 +50,29 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; background: rgba(11, 21, 27, 0.7); padding: 14px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 16px;">
             <div>
                 <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Proveedor Activo</span>
-                <div style="color: #c084fc; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">
-                    @(Ai.IsLocalProvider ? "💻 Local (Ollama Offline)" : "☁️ Nube (Google Gemini)")
+                <div style="color: #38bdf8; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">
+                    🛡️ TypeSafe AI (API Tipada)
                 </div>
-                <small style="color: var(--muted);">Endpoint: @Ai.LocalEndpoint</small>
+                <small style="color: var(--muted);">Endpoint: @TypeSafe.Endpoint</small>
             </div>
             <div>
-                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Modelo en Memoria</span>
-                <div style="color: #e5e7eb; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">@Ai.LocalModel</div>
-                <small style="color: #48d597;">@OllamaStatus.Details</small>
+                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Modelo Jev</span>
+                <div style="color: #e5e7eb; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">@TypeSafeStatus.Model</div>
+                <small style="color: #48d597;">@TypeSafeStatus.Details</small>
             </div>
             <div>
-                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Límites Coagulante / Cloro</span>
+                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Límites de Seguridad (Dosificación)</span>
                 <div style="color: #e5e7eb; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">
-                    Sulfato: @Ai.SulfateMinDose - @Ai.SulfateMaxDose mg/L
+                    Sulfato: @TypeSafe.SulfateMinDose - @TypeSafe.SulfateMaxDose mg/L
                 </div>
-                <small style="color: #48d597;">Cloro: @Ai.ChlorineMinDose - @Ai.ChlorineMaxDose mg/L</small>
+                <small style="color: #48d597;">Cloro: @TypeSafe.ChlorineMinDose - @TypeSafe.ChlorineMaxDose mg/L</small>
             </div>
             <div>
-                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Equipos en Base de Datos</span>
+                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Base de Conocimiento PTAP</span>
                 <div style="color: #6ee7b7; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">
                     @Knowledge.Data.EquipmentSpecs.Count Equipos &bull; @Knowledge.Data.StandardOperatingProcedures.Count SOPs
                 </div>
-                <small style="color: var(--muted);">TK-101, EA-101, FH-201, SC-301, FC-401, TK-501</small>
+                <small style="color: var(--muted);">Reglas operativas y límites normativos de Resolución 2115</small>
             </div>
         </div>
 
@@ -285,12 +286,19 @@
     private string? NewWaPhone;
     private string? NewRuleCondition;
     private string? NewRuleAction;
+    private (bool IsOnline, string Model, long LatencyMs, string Details) TypeSafeStatus = (false, "jev-latest", 0, "No verificado");
     private (bool IsOnline, string Model, string Details) OllamaStatus = (false, "llama3.2:3b", "No verificado");
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
-        await CheckOllamaAsync();
+        await CheckTypeSafeAsync();
+    }
+
+    private async Task CheckTypeSafeAsync()
+    {
+        TypeSafeStatus = await TypeSafe.CheckStatusAsync();
+        StateHasChanged();
     }
 
     private async Task CheckOllamaAsync()

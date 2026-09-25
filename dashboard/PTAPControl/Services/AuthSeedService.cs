@@ -14,7 +14,7 @@ public class AuthSeedService(
     ILogger<AuthSeedService> logger)
 {
     // Roles del sistema
-    public static readonly string[] Roles = ["Administrador", "Operador", "Simulador", "Demo"];
+    public static readonly string[] Roles = ["Administrador", "Gerente", "Operador", "Simulador", "Demo"];
 
     public async Task SeedAsync()
     {
@@ -33,9 +33,10 @@ public class AuthSeedService(
         var adminPassword = config["Auth:AdminPassword"] ?? "Admin@2026!";
         await EnsureUserAsync(adminEmail, adminPassword, "Administrador HIDROCONTROL", "Administrador");
 
-        // 3. Crear los 3 usuarios demo predeterminados
-        await EnsureUserAsync("admin@hidrocontrol.potenzia.app", "Admin2026!", "Director Gerencial / Administrador", "Administrador");
-        await EnsureUserAsync("operador@hidrocontrol.potenzia.app", "Operador2026!", "Técnico de Planta / Operador SCADA", "Operador");
+        // 3. Crear los 4 usuarios demo predeterminados
+        await EnsureUserAsync("admin@hidrocontrol.potenzia.app", "Admin2026!", "Administrador de Sistema", "Administrador");
+        await EnsureUserAsync("gerente@hidrocontrol.potenzia.app", "Gerente2026!", "Gerente General / Auditor", "Gerente");
+        await EnsureUserAsync("operador@hidrocontrol.potenzia.app", "Operador2026!", "Ingeniero Técnico / Operador PTAP", "Operador");
         await EnsureUserAsync("simulador@hidrocontrol.potenzia.app", "Simulador2026!", "Demostración Comercial (Simulador)", "Simulador");
     }
 
@@ -69,11 +70,18 @@ public class AuthSeedService(
         }
         else
         {
-            // Asegurar que tenga el rol asignado y esté aprobado
-            if (!await userManager.IsInRoleAsync(user, role))
+            // Asegurar que tenga el rol asignado exclusivamente y esté aprobado
+            var currentRoles = await userManager.GetRolesAsync(user);
+            if (!currentRoles.Contains(role) || currentRoles.Count > 1)
             {
+                if (currentRoles.Any())
+                {
+                    await userManager.RemoveFromRolesAsync(user, currentRoles);
+                }
                 await userManager.AddToRoleAsync(user, role);
+                logger.LogInformation("Roles actualizados para {Email}: {Role}", email, role);
             }
+
             if (user.ApprovalStatus != ApprovalStatus.Approved || !user.EmailConfirmed)
             {
                 user.ApprovalStatus = ApprovalStatus.Approved;

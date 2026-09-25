@@ -4,8 +4,33 @@ using Microsoft.EntityFrameworkCore;
 using PTAPControl.Components;
 using PTAPControl.Data;
 using PTAPControl.Services;
+// ─── Carga automática de archivo .env ─────────────────────────────────────────
+var envFiles = new[]
+{
+    Path.Combine(Directory.GetCurrentDirectory(), ".env"),
+    Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"),
+    Path.Combine(AppContext.BaseDirectory, ".env")
+};
+foreach (var file in envFiles)
+{
+    if (File.Exists(file))
+    {
+        foreach (var line in File.ReadAllLines(file))
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#")) continue;
+            var parts = trimmed.Split('=', 2);
+            if (parts.Length == 2 && string.IsNullOrEmpty(Environment.GetEnvironmentVariable(parts[0].Trim())))
+            {
+                Environment.SetEnvironmentVariable(parts[0].Trim(), parts[1].Trim());
+            }
+        }
+        break;
+    }
+}
 
 var builder = WebApplication.CreateBuilder(args);
+
 
 // ─── Reverse Proxy (Nginx / Cloudflare) ──────────────────────────────────────
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -104,6 +129,20 @@ builder.Services.AddHttpClient<GeminiAiService>(client =>
     client.Timeout = TimeSpan.FromSeconds(25);
 });
 
+// ─── Cliente HTTP para TypeSafe AI (Jev System One) ──────────────────────────
+builder.Services.AddHttpClient<TypeSafeAiClientService>(client =>
+{
+    var apiKey = Environment.GetEnvironmentVariable("TYPESAFE_API_KEY")
+                 ?? builder.Configuration["Ai:TypeSafeApiKey"]
+                 ?? string.Empty;
+    client.Timeout = TimeSpan.FromSeconds(15);
+    if (!string.IsNullOrWhiteSpace(apiKey))
+    {
+        client.DefaultRequestHeaders.Authorization = 
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+    }
+});
+
 var app = builder.Build();
 
 // ─── Migraciones y seed automático al arrancar ────────────────────────────────
@@ -194,9 +233,16 @@ app.MapPost("/auth/login", async (
         logger.LogInformation("Usuario {Email} inició sesión.", user.Email);
 
         var isSimulador = await userManager.IsInRoleAsync(user, "Simulador");
-        if (isSimulador && returnUrl == "/")
+        var isAdmin = await userManager.IsInRoleAsync(user, "Administrador");
+
+        if (isSimulador && (returnUrl == "/" || returnUrl == "/login"))
         {
             return Results.Redirect("/simulador");
+        }
+
+        if (isAdmin && (returnUrl == "/" || returnUrl == "/login"))
+        {
+            return Results.Redirect("/admin/users");
         }
 
         return Results.Redirect(returnUrl);

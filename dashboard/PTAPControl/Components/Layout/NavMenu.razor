@@ -6,7 +6,7 @@
 
 <div class="nav-shell" id="appNavShell">
     <div class="nav-top-bar">
-        <a class="brand" href="@(_isSimulador ? "simulador" : "")" onclick="closeMobileNav()">
+        <a class="brand" href="@(_isAdmin ? "admin/users" : (_isSimulador ? "simulador" : ""))" onclick="closeMobileNav()">
             <span>H</span>
             <strong>HIDROCONTROL</strong>
         </a>
@@ -18,26 +18,31 @@
 
     <div class="nav-collapsible">
         <nav>
-            <AuthorizeView Roles="Operador,Administrador">
+            <AuthorizeView Roles="Operador,Gerente">
                 <Authorized>
                     <NavLink class="nav-link" href="" Match="NavLinkMatch.All" onclick="closeMobileNav()">🏭 PTAP Control</NavLink>
                 </Authorized>
             </AuthorizeView>
 
-            <AuthorizeView Roles="Administrador">
+            <AuthorizeView Roles="Operador">
                 <Authorized>
                     <NavLink class="nav-link" href="analisis-ia" onclick="closeMobileNav()">🤖 Análisis IA <span class="ai-nav-pill">PRO</span></NavLink>
+                </Authorized>
+            </AuthorizeView>
+
+            <AuthorizeView Roles="Operador,Gerente">
+                <Authorized>
                     <NavLink class="nav-link" href="historicos" onclick="closeMobileNav()">📊 Históricos</NavLink>
                 </Authorized>
             </AuthorizeView>
 
-            <AuthorizeView Roles="Operador,Administrador">
+            <AuthorizeView Roles="Operador">
                 <Authorized>
                     <NavLink class="nav-link" href="alarmas" onclick="closeMobileNav()">🔔 Alarmas</NavLink>
                 </Authorized>
             </AuthorizeView>
 
-            <AuthorizeView Roles="Simulador,Demo,Operador,Administrador">
+            <AuthorizeView Roles="Simulador,Demo">
                 <Authorized>
                     <NavLink class="nav-link" href="simulador" onclick="closeMobileNav()">🎮 Simulador PLC</NavLink>
                 </Authorized>
@@ -98,6 +103,7 @@
     private string? _userName;
     private string? _userRole;
     private bool _isSimulador;
+    private bool _isAdmin;
 
     protected override async Task OnInitializedAsync()
     {
@@ -111,16 +117,27 @@
                         ?? user.Identity.Name;
 
             if (user.IsInRole("Administrador"))
+            {
                 _userRole = "Administrador";
+                _isAdmin = true;
+            }
+            else if (user.IsInRole("Gerente"))
+            {
+                _userRole = "Gerente";
+            }
             else if (user.IsInRole("Operador"))
+            {
                 _userRole = "Operador";
+            }
             else if (user.IsInRole("Simulador"))
             {
                 _userRole = "Simulador";
                 _isSimulador = true;
             }
             else
+            {
                 _userRole = "Demo";
+            }
         }
     }
 }
@@ -148,6 +165,12 @@
     background: rgba(245, 158, 11, 0.15);
     color: #fbbf24;
     border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.role-badge-pill.role-gerente {
+    background: rgba(139, 92, 246, 0.15);
+    color: #a78bfa;
+    border: 1px solid rgba(139, 92, 246, 0.4);
 }
 
 .role-badge-pill.role-administrador {

@@ -48,6 +48,12 @@ ENV/
 *.db-wal
 **/hidrocontrol-auth.db
 
+# --- Variables de Entorno y Secretos ---
+.env
+*.env
+!.env.example
+
+
 # --- Sistema Operativo & IDE ---
 Thumbs.db
 ehthumbs.db

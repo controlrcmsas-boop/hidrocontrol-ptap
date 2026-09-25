@@ -1,6 +1,24 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated == true)
+                {
+                    <PTAPControl.Components.Pages.AccessDenied />
+                }
+                else
+                {
+                    <PTAPControl.Components.RedirectToLogin />
+                }
+            </NotAuthorized>
+            <Authorizing>
+                <div style="padding: 3rem; color: #38bdf8; text-align: center; font-weight: 600;">
+                    Verificando credenciales de seguridad SCADA...
+                </div>
+            </Authorizing>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
     <NotFound>

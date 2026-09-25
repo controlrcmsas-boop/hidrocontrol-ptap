@@ -14,7 +14,7 @@ public class AuthSeedService(
     ILogger<AuthSeedService> logger)
 {
     // Roles del sistema
-    public static readonly string[] Roles = ["Administrador", "Operador", "Demo"];
+    public static readonly string[] Roles = ["Administrador", "Operador", "Simulador", "Demo"];
 
     public async Task SeedAsync()
     {
@@ -28,33 +28,57 @@ public class AuthSeedService(
             }
         }
 
-        // 2. Crear administrador inicial si no hay ninguno
+        // 2. Crear administrador de configuración si no existe
         var adminEmail = config["Auth:AdminEmail"] ?? "admin@hidrocontrol.local";
         var adminPassword = config["Auth:AdminPassword"] ?? "Admin@2026!";
+        await EnsureUserAsync(adminEmail, adminPassword, "Administrador HIDROCONTROL", "Administrador");
 
-        if (await userManager.FindByEmailAsync(adminEmail) is null)
+        // 3. Crear los 3 usuarios demo predeterminados
+        await EnsureUserAsync("admin@hidrocontrol.potenzia.app", "Admin2026!", "Director Gerencial / Administrador", "Administrador");
+        await EnsureUserAsync("operador@hidrocontrol.potenzia.app", "Operador2026!", "Técnico de Planta / Operador SCADA", "Operador");
+        await EnsureUserAsync("simulador@hidrocontrol.potenzia.app", "Simulador2026!", "Demostración Comercial (Simulador)", "Simulador");
+    }
+
+    private async Task EnsureUserAsync(string email, string password, string fullName, string role)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+        if (user is null)
         {
-            var admin = new ApplicationUser
+            user = new ApplicationUser
             {
-                UserName = adminEmail,
-                Email = adminEmail,
-                FullName = "Administrador HIDROCONTROL",
+                UserName = email,
+                Email = email,
+                FullName = fullName,
                 EmailConfirmed = true,
                 ApprovalStatus = ApprovalStatus.Approved,
                 ApprovedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
             };
 
-            var result = await userManager.CreateAsync(admin, adminPassword);
+            var result = await userManager.CreateAsync(user, password);
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(admin, "Administrador");
-                logger.LogInformation("Usuario administrador inicial creado: {Email}", adminEmail);
+                await userManager.AddToRoleAsync(user, role);
+                logger.LogInformation("Usuario {Role} creado: {Email}", role, email);
             }
             else
             {
-                logger.LogError("Error creando admin: {Errors}",
-                    string.Join(", ", result.Errors.Select(e => e.Description)));
+                logger.LogError("Error creando usuario {Email}: {Errors}",
+                    email, string.Join(", ", result.Errors.Select(e => e.Description)));
+            }
+        }
+        else
+        {
+            // Asegurar que tenga el rol asignado y esté aprobado
+            if (!await userManager.IsInRoleAsync(user, role))
+            {
+                await userManager.AddToRoleAsync(user, role);
+            }
+            if (user.ApprovalStatus != ApprovalStatus.Approved || !user.EmailConfirmed)
+            {
+                user.ApprovalStatus = ApprovalStatus.Approved;
+                user.EmailConfirmed = true;
+                await userManager.UpdateAsync(user);
             }
         }
     }

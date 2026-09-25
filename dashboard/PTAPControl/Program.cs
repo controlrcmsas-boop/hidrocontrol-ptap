@@ -192,6 +192,13 @@ app.MapPost("/auth/login", async (
         user.LastLoginAt = DateTime.UtcNow;
         await userManager.UpdateAsync(user);
         logger.LogInformation("Usuario {Email} inició sesión.", user.Email);
+
+        var isSimulador = await userManager.IsInRoleAsync(user, "Simulador");
+        if (isSimulador && returnUrl == "/")
+        {
+            return Results.Redirect("/simulador");
+        }
+
         return Results.Redirect(returnUrl);
     }
     else if (result.IsLockedOut)

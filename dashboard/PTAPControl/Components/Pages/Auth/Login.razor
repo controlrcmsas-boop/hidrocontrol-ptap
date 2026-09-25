@@ -1,4 +1,5 @@
 @page "/login"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @rendermode InteractiveServer
 @layout AuthLayout
 @using Microsoft.AspNetCore.Identity
@@ -10,7 +11,7 @@
 
 <PageTitle>Iniciar Sesión — HIDROCONTROL PTAP</PageTitle>
 
-<div class="auth-card">
+<div class="auth-card auth-card-login">
     <div class="auth-logo">
         <div class="auth-logo-icon">H</div>
         <h1>HIDROCONTROL</h1>
@@ -24,25 +25,32 @@
         </div>
     }
 
-    <EditForm Model="_model" OnValidSubmit="HandleLogin">
-        <DataAnnotationsValidator />
+    <form method="post" action="/auth/login" class="login-form">
+        <input type="hidden" name="returnUrl" value="@(ReturnUrl ?? "/")" />
 
         <div class="auth-field">
-            <label>Correo electrónico</label>
-            <InputText @bind-Value="_model.Email"
-                       type="email"
-                       placeholder="usuario@empresa.com"
-                       autocomplete="email" />
-            <ValidationMessage For="@(() => _model.Email)" />
+            <label for="emailInput">Correo electrónico</label>
+            <input id="emailInput"
+                   name="email"
+                   type="email"
+                   value="@_email"
+                   @oninput="@((ChangeEventArgs e) => _email = e.Value?.ToString() ?? "")"
+                   placeholder="usuario@empresa.com"
+                   autocomplete="email"
+                   required />
         </div>
 
         <div class="auth-field">
-            <label>Contraseña</label>
+            <label for="passwordInput">Contraseña</label>
             <div class="password-wrapper">
-                <InputText @bind-Value="_model.Password"
-                           type="@(_showPassword ? "text" : "password")"
-                           placeholder="Escribe tu contraseña"
-                           autocomplete="current-password" />
+                <input id="passwordInput"
+                       name="password"
+                       type="@(_showPassword ? "text" : "password")"
+                       value="@_password"
+                       @oninput="@((ChangeEventArgs e) => _password = e.Value?.ToString() ?? "")"
+                       placeholder="Escribe tu contraseña"
+                       autocomplete="current-password"
+                       required />
                 <button type="button" class="btn-eye" @onclick="TogglePassword"
                         title="@(_showPassword ? "Ocultar" : "Mostrar contraseña")">
                     @if (_showPassword)
@@ -64,26 +72,104 @@
                     }
                 </button>
             </div>
-            <ValidationMessage For="@(() => _model.Password)" />
         </div>
 
         <div class="auth-field auth-checkbox">
-            <InputCheckbox @bind-Value="_model.RememberMe" id="remember" />
+            <input type="checkbox" name="rememberMe" id="remember" value="true" checked />
             <label for="remember">Mantener sesión activa</label>
         </div>
 
-        <button type="submit" class="btn-auth-primary" disabled="@_loading">
-            @if (_loading)
-            {
-                <span class="spinner-sm"></span>
-                <span>Verificando...</span>
-            }
-            else
-            {
-                <span>🔑 Iniciar Sesión</span>
-            }
+        <button type="submit" class="btn-auth-primary">
+            <span>🔑 Iniciar Sesión</span>
         </button>
-    </EditForm>
+    </form>
+
+    <!-- Panel de Perfiles de Demostración RBAC -->
+    <div class="demo-section">
+        <div class="demo-divider">
+            <span>PERFILES DEMOSTRACIÓN RBAC</span>
+        </div>
+        <p class="demo-hint">Selecciona un perfil para cargar sus credenciales predeterminadas:</p>
+
+        <div class="demo-cards">
+            <!-- 1. Rol Simulador -->
+            <button type="button" class="demo-card" id="demo-simulador"
+                    onclick="loadDemo('simulador@hidrocontrol.potenzia.app', 'Simulador2026!', this, 'active-simulador')">
+                <div class="card-top">
+                    <span class="badge-role badge-simulador">1. Simulador / Comercial</span>
+                    <span class="badge-scope">Showroom Demo 24/7</span>
+                </div>
+                <div class="card-body-text">
+                    <span class="user-id">simulador@hidrocontrol.potenzia.app</span>
+                    <span class="role-desc">Acceso exclusivo a variables virtuales sin alterar planta física.</span>
+                </div>
+                <div class="card-footer-action">
+                    <span class="action-tag">Cargar Credencial</span>
+                </div>
+            </button>
+
+            <!-- 2. Rol Operador -->
+            <button type="button" class="demo-card" id="demo-operador"
+                    onclick="loadDemo('operador@hidrocontrol.potenzia.app', 'Operador2026!', this, 'active-operador')">
+                <div class="card-top">
+                    <span class="badge-role badge-operador">2. Técnico / Operador</span>
+                    <span class="badge-scope">Supervisión & Actuadores</span>
+                </div>
+                <div class="card-body-text">
+                    <span class="user-id">operador@hidrocontrol.potenzia.app</span>
+                    <span class="role-desc">Monitoreo continuo de planta, alarmas y comando de actuadores.</span>
+                </div>
+                <div class="card-footer-action">
+                    <span class="action-tag">Cargar Credencial</span>
+                </div>
+            </button>
+
+            <!-- 3. Rol Administrador -->
+            <button type="button" class="demo-card" id="demo-admin"
+                    onclick="loadDemo('admin@hidrocontrol.potenzia.app', 'Admin2026!', this, 'active-admin')">
+                <div class="card-top">
+                    <span class="badge-role badge-administrador">3. Gerente / Administrador</span>
+                    <span class="badge-scope">Acceso Total</span>
+                </div>
+                <div class="card-body-text">
+                    <span class="user-id">admin@hidrocontrol.potenzia.app</span>
+                    <span class="role-desc">Históricos, auditoría de decisiones IA, usuarios y configuración.</span>
+                </div>
+                <div class="card-footer-action">
+                    <span class="action-tag">Cargar Credencial</span>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function loadDemo(email, password, el, activeClass) {
+            var emailInput = document.getElementById('emailInput');
+            var passInput = document.getElementById('passwordInput');
+            if (emailInput) {
+                emailInput.value = email;
+                emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+                emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (passInput) {
+                passInput.value = password;
+                passInput.dispatchEvent(new Event('input', { bubbles: true }));
+                passInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            document.querySelectorAll('.demo-card').forEach(function(c) {
+                c.classList.remove('active-simulador', 'active-operador', 'active-admin');
+                var tag = c.querySelector('.action-tag');
+                if (tag) tag.innerText = 'Cargar Credencial';
+            });
+
+            if (el) {
+                el.classList.add(activeClass);
+                var activeTag = el.querySelector('.action-tag');
+                if (activeTag) activeTag.innerText = 'Cargado ✓';
+            }
+        }
+    </script>
 
     <div class="auth-footer">
         <p>¿No tienes acceso? <a href="/register">Solicitar acceso</a></p>
@@ -91,97 +177,175 @@
 </div>
 
 @code {
-    private LoginModel _model = new();
+    private string _email = "";
+    private string _password = "";
     private string? _error;
-    private bool _loading;
     private bool _showPassword;
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
+    [SupplyParameterFromQuery]
+    private string? Error { get; set; }
+
     protected override void OnInitialized()
     {
-        if (SignInManager.IsSignedIn(new System.Security.Claims.ClaimsPrincipal()))
-            Nav.NavigateTo(ReturnUrl ?? "/", replace: true);
+        if (!string.IsNullOrEmpty(Error))
+        {
+            _error = Error switch
+            {
+                "invalid" => "Correo o contraseña incorrectos.",
+                "locked" => "Cuenta bloqueada temporalmente por intentos fallidos. Intenta en 5 minutos.",
+                "unconfirmed" => "Debes confirmar tu correo electrónico antes de iniciar sesión.",
+                "rejected" => "Tu solicitud de acceso fue rechazada. Contacta al administrador.",
+                "empty" => "Por favor ingresa tu correo y contraseña.",
+                _ => "Error al iniciar sesión."
+            };
+        }
     }
 
     private void TogglePassword() => _showPassword = !_showPassword;
 
-    private async Task HandleLogin()
+    private void LoadDemoUser(string email, string password)
     {
-        _loading = true;
+        _email = email;
+        _password = password;
         _error = null;
         StateHasChanged();
-
-        try
-        {
-            var user = await UserManager.FindByEmailAsync(_model.Email ?? "");
-            if (user is null)
-            {
-                _error = "Correo o contraseña incorrectos.";
-                _loading = false;
-                return;
-            }
-
-            if (!user.EmailConfirmed)
-            {
-                _error = "Debes confirmar tu correo electrónico antes de iniciar sesión.";
-                _loading = false;
-                return;
-            }
-
-            if (user.ApprovalStatus == ApprovalStatus.Pending)
-            {
-                Nav.NavigateTo("/pending-approval");
-                return;
-            }
-
-            if (user.ApprovalStatus == ApprovalStatus.Rejected)
-            {
-                _error = "Tu solicitud de acceso fue rechazada. Contacta al administrador.";
-                _loading = false;
-                return;
-            }
-
-            var result = await SignInManager.PasswordSignInAsync(
-                user, _model.Password ?? "", _model.RememberMe, lockoutOnFailure: true);
-
-            if (result.Succeeded)
-            {
-                user.LastLoginAt = DateTime.UtcNow;
-                await UserManager.UpdateAsync(user);
-                Logger.LogInformation("Usuario {Email} inició sesión.", user.Email);
-                Nav.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
-            }
-            else if (result.IsLockedOut)
-            {
-                _error = "Cuenta bloqueada temporalmente. Intenta en 5 minutos.";
-            }
-            else
-            {
-                _error = "Correo o contraseña incorrectos.";
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error en login para {Email}", _model.Email);
-            _error = "Error inesperado. Intenta de nuevo.";
-        }
-        finally
-        {
-            _loading = false;
-        }
-    }
-
-    private sealed class LoginModel
-    {
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El correo es requerido")]
-        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Formato de correo inválido")]
-        public string? Email { get; set; }
-
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La contraseña es requerida")]
-        public string? Password { get; set; }
-
-        public bool RememberMe { get; set; }
     }
 }
+
+<style>
+.auth-card-login {
+    max-width: 520px;
+}
+
+.demo-section {
+    margin-top: 1.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(78, 200, 216, 0.15);
+}
+
+.demo-divider {
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.demo-divider span {
+    background: #0f1e2a;
+    border: 1px solid rgba(78, 200, 216, 0.3);
+    color: #4ec8d8;
+    padding: 0.25rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+
+.demo-hint {
+    font-size: 0.78rem;
+    color: #7b949f;
+    text-align: center;
+    margin: 0.5rem 0 0.85rem 0;
+}
+
+.demo-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.demo-card {
+    background: rgba(15, 30, 42, 0.6);
+    border: 1px solid rgba(78, 200, 216, 0.18);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    color: #e2e8f0;
+}
+
+.demo-card:hover {
+    border-color: #38bdf8;
+    background: rgba(15, 30, 42, 0.95);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.demo-card.active-simulador {
+    border-color: #06b6d4;
+    background: rgba(6, 182, 212, 0.12);
+    box-shadow: 0 0 0 1px #06b6d4;
+}
+
+.demo-card.active-operador {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    box-shadow: 0 0 0 1px #f59e0b;
+}
+
+.demo-card.active-admin {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    box-shadow: 0 0 0 1px #10b981;
+}
+
+.card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+}
+
+.badge-role {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.badge-simulador { color: #22d3ee; }
+.badge-operador { color: #fbbf24; }
+.badge-administrador { color: #34d399; }
+
+.badge-scope {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    background: #09131c;
+    color: #7b949f;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.card-body-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.user-id {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    font-weight: 600;
+}
+
+.role-desc {
+    font-size: 0.72rem;
+    color: #7b949f;
+}
+
+.card-footer-action {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+}
+
+.action-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #38bdf8;
+}
+</style>

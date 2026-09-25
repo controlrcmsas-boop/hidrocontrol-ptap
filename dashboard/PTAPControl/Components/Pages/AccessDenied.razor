@@ -1,0 +1,152 @@
+@page "/acceso-denegado"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Acceso Restringido - HIDROCONTROL</PageTitle>
+
+<div class="access-denied-container">
+    <div class="access-denied-card">
+        <div class="icon-warning">
+            <span>🛡️</span>
+        </div>
+        <h1>Acceso Restringido</h1>
+        <p class="subtitle">Tu rol actual no tiene privilegios para consultar esta sección industrial.</p>
+
+        @if (!string.IsNullOrEmpty(_userRole))
+        {
+            <div class="user-role-info">
+                <span>Usuario: <strong>@_userName</strong></span>
+                <span class="badge badge-@_userRole.ToLower()">Rol: @_userRole</span>
+            </div>
+        }
+
+        <div class="actions">
+            @if (_userRole == "Simulador")
+            {
+                <button class="btn btn-primary" @onclick="@(() => Navigation.NavigateTo("/simulador"))">
+                    🎮 Ir al Simulador PLC
+                </button>
+            }
+            else
+            {
+                <button class="btn btn-primary" @onclick="@(() => Navigation.NavigateTo("/"))">
+                    🏭 Ir a Supervisión PTAP
+                </button>
+            }
+            <a class="btn btn-outline" href="/logout">
+                Cambiar de Cuenta
+            </a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? _userName;
+    private string? _userRole;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            _userName = user.FindFirst("FullName")?.Value
+                        ?? user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                        ?? user.Identity.Name;
+
+            if (user.IsInRole("Administrador")) _userRole = "Administrador";
+            else if (user.IsInRole("Operador")) _userRole = "Operador";
+            else if (user.IsInRole("Simulador")) _userRole = "Simulador";
+            else _userRole = "Demo";
+        }
+    }
+}
+
+<style>
+.access-denied-container {
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+.access-denied-card {
+    background: #0d1520;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 16px;
+    padding: 2.5rem;
+    max-width: 500px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.icon-warning {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+.access-denied-card h1 {
+    color: #f87171;
+    font-size: 1.6rem;
+    margin-bottom: 0.5rem;
+}
+.subtitle {
+    color: #94a3b8;
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+}
+.user-role-info {
+    background: #131e2e;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+}
+.badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+.badge-simulador { background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid #06b6d4; }
+.badge-operador { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid #f59e0b; }
+.badge-administrador { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; }
+.badge-demo { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; }
+.actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+}
+.btn {
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+}
+.btn-primary {
+    background: #0284c7;
+    color: white;
+}
+.btn-primary:hover {
+    background: #0369a1;
+}
+.btn-outline {
+    background: transparent;
+    border: 1px solid #475569;
+    color: #cbd5e1;
+}
+.btn-outline:hover {
+    background: #1e293b;
+}
+</style>

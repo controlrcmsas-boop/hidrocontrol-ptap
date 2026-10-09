@@ -110,15 +110,20 @@ button, select, input {
     text-decoration: none;
 }
 
+.brand img,
 .brand-logo {
-    width: 36px;
-    height: 36px;
+    width: 34px !important;
+    height: 34px !important;
+    max-width: 34px !important;
+    max-height: 34px !important;
     object-fit: contain;
+    flex-shrink: 0;
     filter: drop-shadow(0 2px 8px rgba(56, 189, 248, 0.45));
     transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.brand:hover .brand-logo {
+.brand:hover .brand-logo,
+.brand:hover img {
     transform: scale(1.08);
 }
 
@@ -2934,7 +2939,17 @@ h2 {
 
 /* Logo */
 .auth-logo { text-align: center; margin-bottom: 2rem; }
-.auth-logo img { height: 60px; margin-bottom: 0.75rem; }
+.auth-brand-logo,
+.auth-logo img {
+    width: 68px !important;
+    height: 68px !important;
+    max-width: 68px !important;
+    max-height: 68px !important;
+    object-fit: contain;
+    margin: 0 auto 0.85rem !important;
+    display: block !important;
+    filter: drop-shadow(0 4px 16px rgba(0, 180, 216, 0.3));
+}
 .auth-logo h1 { font-size: 1.6rem; font-weight: 700; color: #4ec8d8; margin: 0; letter-spacing: 3px; }
 .auth-logo p  { color: #4a6070; margin: 0.25rem 0 0; font-size: 0.85rem; }
 

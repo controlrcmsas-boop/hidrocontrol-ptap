@@ -6,13 +6,19 @@ namespace PTAPControl.Services;
 public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simulationEngine)
 {
     public PtapSimulationEngine Simulation => simulationEngine;
+    public Uri? BaseAddress => http.BaseAddress;
+    public string EndpointDisplay => (http.BaseAddress?.Host is "localhost" or "127.0.0.1")
+        ? "Node-RED Local"
+        : (http.BaseAddress?.ToString().TrimEnd('/') ?? "Node-RED");
 
     public async Task<TelemetryResponse?> GetCurrentTelemetryAsync(CancellationToken cancellationToken = default)
     {
         // Si estamos en modo de simulación (automático o manual), respondemos desde el motor nativo en memoria
         if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
         {
-            return simulationEngine.GenerateTelemetryStep();
+            var simStep = simulationEngine.GenerateTelemetryStep();
+            simulationEngine.RecordTelemetrySample(simStep);
+            return simStep;
         }
 
         try
@@ -24,7 +30,12 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
             }
 
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<TelemetryResponse>(cancellationToken);
+            var telemetry = await response.Content.ReadFromJsonAsync<TelemetryResponse>(cancellationToken);
+            if (telemetry is not null)
+            {
+                simulationEngine.RecordTelemetrySample(telemetry);
+            }
+            return telemetry;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
         {
@@ -53,15 +64,40 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
             Source = "dashboard"
         };
 
-        var response = await http.PostAsJsonAsync("api/control/command", request, cancellationToken);
-        var commandResponse = await response.Content.ReadFromJsonAsync<CommandResponse>(cancellationToken);
-
-        if (!response.IsSuccessStatusCode && commandResponse is not null)
+        try
         {
-            commandResponse.Accepted = false;
-        }
+            var response = await http.PostAsJsonAsync("api/control/command", request, cancellationToken);
+            var commandResponse = await response.Content.ReadFromJsonAsync<CommandResponse>(cancellationToken);
 
-        return commandResponse;
+            if (commandResponse is not null)
+            {
+                if (!response.IsSuccessStatusCode)
+                {
+                    commandResponse.Accepted = false;
+                }
+                return commandResponse;
+            }
+
+            return new CommandResponse
+            {
+                Accepted = response.IsSuccessStatusCode,
+                Target = target,
+                Command = command,
+                Error = response.IsSuccessStatusCode ? null : $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}",
+                Timestamp = DateTimeOffset.UtcNow
+            };
+        }
+        catch (Exception ex)
+        {
+            return new CommandResponse
+            {
+                Accepted = false,
+                Target = target,
+                Command = command,
+                Error = $"Error de comunicación con Node-RED (Planta Remota): {ex.Message}",
+                Timestamp = DateTimeOffset.UtcNow
+            };
+        }
     }
 
     public async Task<List<QualityHistoryPoint>> GetQualityHistoryAsync(string tag, int limit = 100, CancellationToken cancellationToken = default)
@@ -302,12 +338,15 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
         simulationEngine.ModoRemotoHabilitado = state.ModoRemotoHabilitado;
         simulationEngine.PlcEnFalla = state.PlcEnFalla;
 
+        simulationEngine.NotifyParametersChanged();
+
         return await GetSimulatorStateAsync(cancellationToken);
     }
 
     public async Task<bool> SetSimulatorScenarioAsync(string scenario, CancellationToken cancellationToken = default)
     {
         simulationEngine.SetScenario(scenario);
+        simulationEngine.NotifyParametersChanged();
         return await Task.FromResult(true);
     }
 }

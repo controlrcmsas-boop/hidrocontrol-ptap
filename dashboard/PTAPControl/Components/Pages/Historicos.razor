@@ -1,6 +1,7 @@
 @page "/historicos"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Operador,Gerente")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Operador,Gerente,Administrador,Simulador,Demo")]
 @rendermode InteractiveServer
+@implements IDisposable
 @using PTAPControl.Models
 @using PTAPControl.Services
 @inject NodeRedApiClient Api
@@ -14,11 +15,17 @@
             <h1>Curvas Históricas de Proceso</h1>
         </div>
         <div class="header-actions">
+            <span class="history-mode-pill @(Api.Simulation.CurrentMode == PtapDataSourceMode.PhysicalPlc ? "plc" : "sim")">
+                <span class="live-pulse-dot"></span>
+                @(Api.Simulation.CurrentMode == PtapDataSourceMode.PhysicalPlc 
+                    ? "Planta Real (PLC S7-1200)" 
+                    : "Simulador PTAP (En Vivo)")
+            </span>
             <a class="refresh-button download-link" href="@CsvHref" download="hidrocontrol-historicos.csv">
-                📥 Descargar CSV
+                Descargar CSV
             </a>
             <button class="refresh-button" @onclick="LoadAsync">
-                🔄 Actualizar
+                Actualizar
             </button>
         </div>
     </header>
@@ -26,7 +33,7 @@
     <!-- Barra de control y filtrado temporal -->
     <div class="history-toolbar-card">
         <div class="toolbar-left">
-            <span class="toolbar-label">⏱️ Ventana de Tiempo:</span>
+            <span class="toolbar-label">Ventana de Tiempo:</span>
             <div class="range-buttons-group">
                 <button type="button" class="btn-range @(SelectedRangeMinutes == 60 ? "active" : "")" 
                         @onclick="() => SetRange(60)">1 Hora</button>
@@ -60,7 +67,7 @@
         <div class="trend-head">
             <div class="trend-title-group">
                 <div class="badge-stage badge-cruda">ETAPA ENTRADA</div>
-                <h2>💧 Calidad de Agua Cruda</h2>
+                <h2>Calidad de Agua Cruda</h2>
                 <span class="trend-subtitle">@CurveSubtitle(RawSeries) &bull; Monitoreo continuo a la entrada de planta</span>
             </div>
             <div class="trend-legend">
@@ -155,7 +162,7 @@
         <div class="trend-head">
             <div class="trend-title-group">
                 <div class="badge-stage badge-tratada">ETAPA SALIDA</div>
-                <h2>✨ Calidad de Agua Tratada</h2>
+                <h2>Calidad de Agua Tratada</h2>
                 <span class="trend-subtitle">@CurveSubtitle(TreatedSeries) &bull; Cumplimiento normativo y salida al tanque final</span>
             </div>
             <div class="trend-legend">
@@ -210,14 +217,18 @@
             <text x="132" y="314" fill="#a78bfa" font-size="10.5" text-anchor="end" font-weight="700">0</text>
             <text x="76" y="170" fill="#a78bfa" font-size="11" text-anchor="middle" transform="rotate(-90 76 170)" font-weight="800" letter-spacing="0.05em">Conductividad (µS/cm)</text>
 
-            <!-- EJE DERECHA: Turbidez (x = 940) -->
+            <!-- EJE DERECHA: Turbidez Tratada (0 - 10 NTU de precisión) -->
             <line x1="940" y1="30" x2="940" y2="310" stroke="#fb923c" stroke-width="1.5" />
-            <text x="948" y="34" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">100</text>
-            <text x="948" y="104" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">75</text>
-            <text x="948" y="174" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">50</text>
-            <text x="948" y="244" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">25</text>
-            <text x="948" y="314" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">0</text>
-            <text x="1005" y="170" fill="#fb923c" font-size="11" text-anchor="middle" transform="rotate(90 1005 170)" font-weight="800" letter-spacing="0.05em">Turbidez (NTU)</text>
+            <text x="948" y="34" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">10.0</text>
+            <text x="948" y="104" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">7.5</text>
+            <text x="948" y="174" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">5.0</text>
+            <text x="948" y="244" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">2.5</text>
+            <text x="948" y="314" fill="#fb923c" font-size="11" text-anchor="start" font-weight="700">0.0</text>
+            <text x="1005" y="170" fill="#fb923c" font-size="11" text-anchor="middle" transform="rotate(90 1005 170)" font-weight="800" letter-spacing="0.05em">Turbidez (0 - 10 NTU)</text>
+
+            <!-- Límite Normativo Sanitario (1.80 NTU -> y = 259.6) -->
+            <line x1="150" y1="259.6" x2="930" y2="259.6" stroke="#ef4444" stroke-dasharray="6 4" stroke-width="1.2" />
+            <text x="155" y="254" fill="#ef4444" font-size="10" font-weight="700">Límite Normativo (1.80 NTU)</text>
 
             <!-- Trazado de Curvas -->
             @foreach (var series in TreatedSeries)
@@ -241,7 +252,7 @@
     <!-- Tabla de telemetría reciente -->
     <div class="table-container-card">
         <div class="table-header-title">
-            <h3>📑 Registro Reciente de Puntos de Calidad</h3>
+            <h3>Registro Reciente de Puntos de Calidad</h3>
             <span class="table-subtitle">Últimas 60 muestras ordenadas cronológicamente</span>
         </div>
         <table class="history-table">
@@ -353,7 +364,29 @@
 
     private string CsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(BuildCsv());
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private PeriodicTimer? _refreshTimer;
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _cts = new CancellationTokenSource();
+        _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        _ = RunLoopAsync(_refreshTimer, _cts.Token);
+    }
+
+    private async Task RunLoopAsync(PeriodicTimer timer, CancellationToken ct)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
 
     private async Task SetRange(int minutes)
     {
@@ -395,8 +428,8 @@
             return string.Empty;
         }
 
-        // 1. Suavizado por media móvil (ventana de 5 puntos) para remover el jitter de alta frecuencia
-        int window = Math.Min(5, rawPoints.Count);
+        // 1. Suavizado por media móvil (ventana de 3 puntos para mantener fidelidad reactiva sin jitter)
+        int window = Math.Min(3, rawPoints.Count);
         var smoothed = new List<(DateTimeOffset Time, double Value)>(rawPoints.Count);
         for (int i = 0; i < rawPoints.Count; i++)
         {
@@ -406,8 +439,8 @@
             smoothed.Add((rawPoints[i].RecordedAt, avg));
         }
 
-        // 2. Muestreo inteligente a máximo 220 puntos para trazado vectorial nítido
-        int maxPoints = 220;
+        // 2. Muestreo inteligente a máximo 240 puntos para trazado vectorial nítido
+        int maxPoints = 240;
         List<(DateTimeOffset Time, double Value)> finalPoints;
         if (smoothed.Count > maxPoints)
         {
@@ -442,10 +475,15 @@
             minValue = 0;
             maxValue = 2000;
         }
+        else if (tag == "turbidez_agua_tratada")
+        {
+            minValue = 0;
+            maxValue = 10.0;
+        }
         else if (tag.StartsWith("turbidez_"))
         {
             minValue = 0;
-            maxValue = 100;
+            maxValue = 100.0;
         }
 
         const double plotLeft = 150;
@@ -462,6 +500,13 @@
             var y = plotBottom - Math.Clamp(valueRatio, 0, 1) * plotHeight;
             return $"{x.ToString("0.##", Culture)},{y.ToString("0.##", Culture)}";
         }));
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _refreshTimer?.Dispose();
     }
 
     private string BuildCsv()
@@ -482,6 +527,41 @@
     flex-direction: column;
     gap: 1.5rem;
     padding-bottom: 2.5rem;
+}
+
+.history-mode-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.history-mode-pill.plc {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+}
+.history-mode-pill.sim {
+    background: rgba(6, 182, 212, 0.15);
+    color: #22d3ee;
+    border: 1px solid rgba(6, 182, 212, 0.4);
+}
+
+.live-pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+    animation: pulse-live 1.8s infinite;
+}
+@@keyframes pulse-live {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
 }
 
 /* Tarjeta de barra de herramientas */

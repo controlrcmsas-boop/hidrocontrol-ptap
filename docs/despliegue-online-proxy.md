@@ -137,7 +137,7 @@ ASPNETCORE_ENVIRONMENT=Production
 # Puertos locales en los que escucha Kestrel internamente tras Nginx
 ASPNETCORE_URLS=http://127.0.0.1:5088
 
-# URL donde Blazor encuentra a Node-RED (red interna o localhost)
+# URL donde Blazor encuentra a Node-RED (producción local directa)
 NODERED_BASE_URL=http://127.0.0.1:1880/
 ```
 

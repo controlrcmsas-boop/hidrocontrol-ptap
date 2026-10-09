@@ -7,7 +7,7 @@
 <div class="nav-shell" id="appNavShell">
     <div class="nav-top-bar">
         <a class="brand" href="@(_isAdmin ? "admin/users" : (_isSimulador ? "simulador" : ""))" onclick="closeMobileNav()">
-            <span>H</span>
+            <img src="images/brand-logo-light.png" alt="Hidrocontrol" class="brand-logo" />
             <strong>HIDROCONTROL</strong>
         </a>
         <button type="button" class="mobile-nav-toggle" onclick="toggleMobileNav()" aria-label="Abrir menú de navegación">
@@ -18,47 +18,47 @@
 
     <div class="nav-collapsible">
         <nav>
-            <AuthorizeView Roles="Operador,Gerente">
+            <AuthorizeView Roles="Operador,Gerente,Administrador">
                 <Authorized>
-                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All" onclick="closeMobileNav()">🏭 PTAP Control</NavLink>
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All" onclick="closeMobileNav()">PTAP Control</NavLink>
                 </Authorized>
             </AuthorizeView>
 
             <AuthorizeView Roles="Operador">
                 <Authorized>
-                    <NavLink class="nav-link" href="analisis-ia" onclick="closeMobileNav()">🤖 Análisis IA <span class="ai-nav-pill">PRO</span></NavLink>
+                    <NavLink class="nav-link" href="analisis-ia" onclick="closeMobileNav()">Análisis IA</NavLink>
                 </Authorized>
             </AuthorizeView>
 
-            <AuthorizeView Roles="Operador,Gerente">
+            <AuthorizeView Roles="Operador,Gerente,Administrador,Simulador,Demo">
                 <Authorized>
-                    <NavLink class="nav-link" href="historicos" onclick="closeMobileNav()">📊 Históricos</NavLink>
+                    <NavLink class="nav-link" href="historicos" onclick="closeMobileNav()">Históricos</NavLink>
                 </Authorized>
             </AuthorizeView>
 
             <AuthorizeView Roles="Operador">
                 <Authorized>
-                    <NavLink class="nav-link" href="alarmas" onclick="closeMobileNav()">🔔 Alarmas</NavLink>
+                    <NavLink class="nav-link" href="alarmas" onclick="closeMobileNav()">Alarmas</NavLink>
                 </Authorized>
             </AuthorizeView>
 
             <AuthorizeView Roles="Simulador,Demo">
                 <Authorized>
-                    <NavLink class="nav-link" href="simulador" onclick="closeMobileNav()">🎮 Simulador PLC</NavLink>
+                    <NavLink class="nav-link" href="simulador" onclick="closeMobileNav()">Simulador PLC</NavLink>
                 </Authorized>
             </AuthorizeView>
 
             <AuthorizeView Roles="Administrador">
                 <Authorized>
-                    <NavLink class="nav-link" href="configuracion" onclick="closeMobileNav()">⚙️ Configuración</NavLink>
+                    <NavLink class="nav-link" href="configuracion" onclick="closeMobileNav()">Configuración</NavLink>
                     <hr class="nav-divider" />
-                    <NavLink class="nav-link nav-link-admin" href="admin/users" onclick="closeMobileNav()">👥 Usuarios</NavLink>
+                    <NavLink class="nav-link nav-link-admin" href="admin/users" onclick="closeMobileNav()">Usuarios</NavLink>
                 </Authorized>
             </AuthorizeView>
 
             <AuthorizeView>
                 <NotAuthorized>
-                    <NavLink class="nav-link" href="login" onclick="closeMobileNav()">🔑 Iniciar Sesión</NavLink>
+                    <NavLink class="nav-link" href="login" onclick="closeMobileNav()">Iniciar Sesión</NavLink>
                 </NotAuthorized>
             </AuthorizeView>
         </nav>
@@ -74,10 +74,10 @@
                             <span class="role-badge-pill role-@(_userRole?.ToLower())">ROL: @_userRole</span>
                         </div>
                     </div>
-                    <a class="nav-logout" href="/logout">🚪 Cerrar sesión</a>
+                    <a class="nav-logout" href="/logout">Cerrar sesión</a>
                 </Authorized>
                 <NotAuthorized>
-                    <a class="nav-link login-nav-link" href="/login" onclick="closeMobileNav()">🔑 Iniciar sesión</a>
+                    <a class="nav-link login-nav-link" href="/login" onclick="closeMobileNav()">Iniciar sesión</a>
                 </NotAuthorized>
             </AuthorizeView>
         </div>

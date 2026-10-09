@@ -34,13 +34,101 @@ public sealed class PtapSimulationEngine
     public double PresionB1Base { get; set; } = 2.45;
     public double CaudalB1Base { get; set; } = 15.0;
 
-    // Modo de operación y escenario
-    public PtapDataSourceMode CurrentMode { get; set; } = PtapDataSourceMode.SimulatedAuto;
+    // Modo de operación y escenario (por defecto PLC físico real para operación en planta)
+    public PtapDataSourceMode CurrentMode { get; set; } = PtapDataSourceMode.PhysicalPlc;
     public string ActiveScenario { get; private set; } = "normal";
     public bool SimulatePlcDisconnected { get; set; } = false;
 
     private long _stepCounter = 0;
     private readonly Random _random = new();
+
+    // Buffer circular en memoria para series históricas sincronizadas con el simulador y PLC
+    private readonly Dictionary<string, List<QualityHistoryPoint>> _historyStore = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ph_agua_cruda"] = new(),
+        ["turbidez_agua_cruda"] = new(),
+        ["conductividad_agua_cruda"] = new(),
+        ["ph_agua_tratada"] = new(),
+        ["turbidez_agua_tratada"] = new(),
+        ["conductividad_agua_tratada"] = new(),
+        ["caudal_bomba_principal"] = new(),
+        ["presion_bomba_principal"] = new(),
+        ["caudal_distribucion"] = new()
+    };
+    private const int MaxHistoryPointsPerTag = 3600;
+    private readonly Timer? _backgroundTimer;
+
+    public PtapSimulationEngine()
+    {
+        // Sembrar historial coherente con los valores iniciales para las últimas 2 horas
+        InitializeFullHistory();
+
+        // Muestreador continuo en segundo plano cada 2 segundos
+        _backgroundTimer = new Timer(OnBackgroundTick, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
+    }
+
+    private void OnBackgroundTick(object? state)
+    {
+        if (CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        {
+            var telemetry = GenerateTelemetryStep();
+            RecordTelemetrySample(telemetry);
+        }
+    }
+
+    public void NotifyParametersChanged()
+    {
+        lock (_sync)
+        {
+            if (CurrentMode != PtapDataSourceMode.PhysicalPlc)
+            {
+                // Inyectar muestras inmediatas para reflejar de forma reactiva el cambio en las gráficas
+                var telemetry = GenerateTelemetryStep();
+                RecordTelemetrySample(telemetry);
+            }
+        }
+    }
+
+    public double GetCurrentEstimatedPhTratada()
+    {
+        if (DosificadorSulfatoEstado && BombaPrincipalEstado)
+        {
+            return Math.Max(6.0, PhCrudaBase - 0.20);
+        }
+        return PhCrudaBase;
+    }
+
+    public double GetCurrentEstimatedTurbTratada()
+    {
+        if (DosificadorSulfatoEstado && BombaPrincipalEstado)
+        {
+            return Math.Max(0.25, TurbidezCrudaBase * 0.025);
+        }
+        return Math.Max(1.5, TurbidezCrudaBase * 0.45);
+    }
+
+    public double GetCurrentEstimatedCondTratada()
+    {
+        return ConductividadCrudaBase + (DosificadorCloroEstado ? 20.0 : 0.0);
+    }
+
+    public double GetEstimatedTurbTratada(double turbCruda)
+    {
+        if (DosificadorSulfatoEstado && BombaPrincipalEstado)
+        {
+            return Math.Max(0.25, (turbCruda * 0.025) + NextGaussian(0, 0.03));
+        }
+        return Math.Max(1.5, (turbCruda * 0.45) + NextGaussian(0, 0.1));
+    }
+
+    public double GetEstimatedPhTratada(double phCruda)
+    {
+        if (DosificadorSulfatoEstado && BombaPrincipalEstado)
+        {
+            return Math.Max(6.0, phCruda - 0.20 + NextGaussian(0, 0.02));
+        }
+        return phCruda;
+    }
 
     public void SetMode(PtapDataSourceMode mode)
     {
@@ -318,96 +406,129 @@ public sealed class PtapSimulationEngine
         }
     }
 
+    public void RecordTelemetrySample(TelemetryResponse telemetry)
+    {
+        if (telemetry?.Values == null || !telemetry.PlcConnected) return;
+
+        lock (_sync)
+        {
+            var now = telemetry.Timestamp != default ? telemetry.Timestamp : DateTimeOffset.UtcNow;
+            foreach (var (key, val) in telemetry.Values)
+            {
+                if (_historyStore.TryGetValue(key, out var list))
+                {
+                    double numVal = 0;
+                    if (val is double d) numVal = d;
+                    else if (val is float f) numVal = f;
+                    else if (val is decimal dec) numVal = (double)dec;
+                    else if (val is int i) numVal = i;
+                    else if (val is long l) numVal = l;
+                    else if (val is System.Text.Json.JsonElement je)
+                    {
+                        if (je.ValueKind == System.Text.Json.JsonValueKind.Number && je.TryGetDouble(out var parsedDbl))
+                            numVal = parsedDbl;
+                        else if (double.TryParse(je.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                            numVal = parsed;
+                        else continue;
+                    }
+                    else if (val != null && double.TryParse(val.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                    {
+                        numVal = parsed;
+                    }
+                    else continue;
+
+                    string unit = key.StartsWith("ph_") ? "pH" : (key.StartsWith("turbidez_") ? "NTU" : (key.StartsWith("conductividad_") ? "µS/cm" : ""));
+                    string quality = "GOOD";
+                    if (key == "turbidez_agua_tratada" && numVal > 1.80) quality = "BAD";
+                    else if (key == "turbidez_agua_cruda" && numVal > 50.0) quality = "WARNING";
+
+                    list.Add(new QualityHistoryPoint
+                    {
+                        RecordedAt = now,
+                        TagId = key,
+                        ValueNumeric = (decimal)Math.Round(numVal, 2),
+                        Unit = unit,
+                        Quality = quality
+                    });
+
+                    if (list.Count > MaxHistoryPointsPerTag)
+                    {
+                        list.RemoveAt(0);
+                    }
+                }
+            }
+        }
+    }
+
+    private void AddHistoryPointDirect(string tag, DateTimeOffset time, double value, string unit)
+    {
+        if (_historyStore.TryGetValue(tag, out var list))
+        {
+            string quality = "GOOD";
+            if (tag == "turbidez_agua_tratada" && value > 1.80) quality = "BAD";
+            else if (tag == "turbidez_agua_cruda" && value > 50.0) quality = "WARNING";
+
+            list.Add(new QualityHistoryPoint
+            {
+                RecordedAt = time,
+                TagId = tag,
+                ValueNumeric = (decimal)Math.Round(value, 2),
+                Unit = unit,
+                Quality = quality
+            });
+        }
+    }
+
+    private void InitializeFullHistory()
+    {
+        var now = DateTimeOffset.UtcNow;
+        const int totalPoints = 360; // 360 puntos * 20 s = 2 horas completas
+        for (int i = totalPoints; i >= 0; i--)
+        {
+            var ptTime = now.AddSeconds(-i * 20);
+            double t = (totalPoints - i) * 0.05;
+            double slowWave = Math.Sin(t * 0.2) * 1.5;
+
+            double phC = Math.Clamp(PhCrudaBase + NextGaussian(0, 0.02), 4.0, 10.0);
+            double turbC = Math.Max(2.0, TurbidezCrudaBase + slowWave + NextGaussian(0, 0.3));
+            double condC = Math.Max(100.0, ConductividadCrudaBase + NextGaussian(0, 2.0));
+
+            double turbT = GetEstimatedTurbTratada(turbC);
+            double phT = GetEstimatedPhTratada(phC);
+            double condT = condC + (DosificadorCloroEstado ? 20.0 : 0.0) + NextGaussian(0, 1.0);
+
+            double caudalB1 = BombaPrincipalEstado ? Math.Max(0.0, CaudalB1Base + NextGaussian(0, 0.15)) : 0.0;
+            double presionB1 = BombaPrincipalEstado ? Math.Max(0.0, PresionB1Base + NextGaussian(0, 0.04)) : 0.0;
+            double caudalDist = BombaPrincipalEstado ? Math.Max(0.0, caudalB1 * 0.97 + NextGaussian(0, 0.1)) : 0.0;
+
+            AddHistoryPointDirect("ph_agua_cruda", ptTime, phC, "pH");
+            AddHistoryPointDirect("turbidez_agua_cruda", ptTime, turbC, "NTU");
+            AddHistoryPointDirect("conductividad_agua_cruda", ptTime, condC, "µS/cm");
+            AddHistoryPointDirect("ph_agua_tratada", ptTime, phT, "pH");
+            AddHistoryPointDirect("turbidez_agua_tratada", ptTime, turbT, "NTU");
+            AddHistoryPointDirect("conductividad_agua_tratada", ptTime, condT, "µS/cm");
+            AddHistoryPointDirect("caudal_bomba_principal", ptTime, caudalB1, "L/min");
+            AddHistoryPointDirect("presion_bomba_principal", ptTime, presionB1, "bar");
+            AddHistoryPointDirect("caudal_distribucion", ptTime, caudalDist, "L/min");
+        }
+    }
+
     public List<QualityHistoryPoint> GetQualityHistory(string tag, int limit = 100)
     {
         lock (_sync)
         {
-            var points = new List<QualityHistoryPoint>();
-            var now = DateTimeOffset.UtcNow;
-            bool isDisturbed = ActiveScenario == "low_confidence" || ActiveScenario == "rain" || TurbidezCrudaBase > 40.0;
-
-            string unit = tag.StartsWith("ph_") ? "pH" : (tag.StartsWith("turbidez_") ? "NTU" : "µS/cm");
-
-            // Línea base estándar (operación nominal de planta)
-            double normalVal = tag switch
+            if (!_historyStore.TryGetValue(tag, out var list) || list.Count == 0)
             {
-                "ph_agua_cruda" => 7.25,
-                "turbidez_agua_cruda" => 18.5,
-                "conductividad_agua_cruda" => 425.0,
-                "ph_agua_tratada" => 7.10,
-                "turbidez_agua_tratada" => 0.45,
-                "conductividad_agua_tratada" => 440.0,
-                _ => 10.0
-            };
-
-            // Valores de pico durante la perturbación / evento de baja confianza
-            double disturbedVal = tag switch
-            {
-                "ph_agua_cruda" => PhCrudaBase,
-                "turbidez_agua_cruda" => TurbidezCrudaBase,
-                "conductividad_agua_cruda" => ConductividadCrudaBase,
-                "ph_agua_tratada" => 6.95,
-                "turbidez_agua_tratada" => 1.95, // Sobrepasa límite normativo de 1.8 NTU
-                "conductividad_agua_tratada" => 510.0,
-                _ => 10.0
-            };
-
-            // Curva transitoria temporal:
-            // 1. Antes del 45% del tiempo registrado: Operación normal estable
-            // 2. Entre el 45% y 25%: Rampa de subida pronunciada de la perturbación
-            // 3. Del 25% al presente (0%): Estado perturbado pico
-            int rampStartIdx = (int)(limit * 0.45);
-            int rampEndIdx = (int)(limit * 0.25);
-
-            for (int i = limit; i >= 0; i--)
-            {
-                double targetVal;
-                if (!isDisturbed)
-                {
-                    targetVal = normalVal;
-                }
-                else
-                {
-                    if (i >= rampStartIdx)
-                    {
-                        targetVal = normalVal;
-                    }
-                    else if (i <= rampEndIdx)
-                    {
-                        targetVal = disturbedVal;
-                    }
-                    else
-                    {
-                        double t = (double)(rampStartIdx - i) / (rampStartIdx - rampEndIdx);
-                        double smooth = t * t * (3 - 2 * t);
-                        targetVal = normalVal + (disturbedVal - normalVal) * smooth;
-                    }
-                }
-
-                double noiseStd = Math.Max(0.015, targetVal * 0.035);
-                double sampled = Math.Max(0.01, targetVal + NextGaussian(0, noiseStd));
-                decimal roundedVal = (decimal)Math.Round(sampled, 2);
-
-                string quality = "GOOD";
-                if (tag == "turbidez_agua_tratada" && roundedVal > 1.80m)
-                {
-                    quality = "BAD";
-                }
-                else if (tag == "turbidez_agua_cruda" && roundedVal > 50.0m)
-                {
-                    quality = "WARNING";
-                }
-
-                points.Add(new QualityHistoryPoint
-                {
-                    RecordedAt = now.AddSeconds(-i * 5),
-                    ValueNumeric = roundedVal,
-                    TagId = tag,
-                    Unit = unit,
-                    Quality = quality
-                });
+                InitializeFullHistory();
+                _historyStore.TryGetValue(tag, out list);
             }
-            return points;
+
+            if (list == null || list.Count == 0)
+            {
+                return new List<QualityHistoryPoint>();
+            }
+
+            return list.Count > limit ? list.Skip(list.Count - limit).ToList() : new List<QualityHistoryPoint>(list);
         }
     }
 

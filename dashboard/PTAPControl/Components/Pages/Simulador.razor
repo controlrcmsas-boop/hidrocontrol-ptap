@@ -238,6 +238,9 @@
                         ? "✓ Coagulación activa: Turbidez abatida a < 1.0 NTU (Apta para consumo)."
                         : "⚠️ Coagulación inactiva: Turbidez no tratada sobrepasando norma.")
                 </p>
+                <a href="historicos" class="sim-charts-link">
+                    📈 Ver Curvas Históricas y Tendencias del Proceso &rarr;
+                </a>
             </div>
         </div>
     </div>
@@ -592,6 +595,26 @@
         color: #94a3b8;
         margin: 10px 0 0 0;
         line-height: 1.4;
+    }
+
+    .sim-charts-link {
+        display: block;
+        margin-top: 12px;
+        padding: 8px 12px;
+        background: rgba(34, 211, 238, 0.12);
+        border: 1px solid rgba(34, 211, 238, 0.4);
+        border-radius: 8px;
+        color: #22d3ee;
+        text-align: center;
+        text-decoration: none;
+        font-size: 0.82rem;
+        font-weight: 700;
+        transition: all 0.2s ease;
+    }
+    .sim-charts-link:hover {
+        background: rgba(34, 211, 238, 0.25);
+        color: #ffffff;
+        box-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
     }
 
     @@media (max-width: 768px) {

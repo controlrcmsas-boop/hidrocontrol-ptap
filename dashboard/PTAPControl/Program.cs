@@ -40,7 +40,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
-// ─── CORS dinámico ────────────────────────────────────────────────────────────
+// ─── CORS dinámico (Soporte Local, Nube y VPN Tailscale) ──────────────────────
 var allowedOrigins = builder.Configuration.GetSection("HostSettings:AllowedOrigins").Get<string[]>()
     ?? ["http://localhost:5088", "https://hidrocontrol.potenzia.app"];
 
@@ -48,7 +48,19 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("PtapCorsPolicy", policy =>
     {
-        policy.WithOrigins(allowedOrigins)
+        policy.SetIsOriginAllowed(origin =>
+              {
+                  if (string.IsNullOrEmpty(origin)) return false;
+                  if (allowedOrigins.Contains(origin)) return true;
+                  if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                  {
+                      var host = uri.Host;
+                      if (host == "localhost" || host == "127.0.0.1") return true;
+                      // Rango VPN privada Tailscale (100.x.y.z y dominios *.ts.net) y redes industriales locales (192.168.x.x, 10.x.x.x)
+                      if (host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase) || host.StartsWith("100.") || host.StartsWith("192.168.") || host.StartsWith("10.")) return true;
+                  }
+                  return false;
+              })
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

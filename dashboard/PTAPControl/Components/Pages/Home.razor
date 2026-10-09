@@ -1,5 +1,5 @@
 @page "/"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Operador,Gerente")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Operador,Gerente,Administrador")]
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Components.Authorization
 @using PTAPControl.Models
@@ -15,22 +15,22 @@
             <p class="eyebrow">HIDROCONTROL PTAP V2.2</p>
             <h1>PTAP Control</h1>
         </div>
-        <AuthorizeView Roles="Operador">
+        <AuthorizeView Roles="Operador,Administrador">
             <Authorized>
                 <div class="mode-selector-strip">
                     <label class="mode-label">Modo Operativo:</label>
                     <div class="mode-buttons-group">
                         <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.SimulatedAuto ? "active auto" : "")" 
                                 @onclick="() => SwitchMode(PtapDataSourceMode.SimulatedAuto)" title="Simulación autónoma continua en la nube (Ideal para demos 24/7)">
-                            🌐 Piloto Auto (Nube)
+                            Piloto Auto (Nube)
                         </button>
                         <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.SimulatedManual ? "active manual" : "")" 
                                 @onclick="() => SwitchMode(PtapDataSourceMode.SimulatedManual)" title="Showroom interactivo con inyección de fallas">
-                            🎮 Showroom Demo
+                            Showroom Demo
                         </button>
                         <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.PhysicalPlc ? "active plc" : "")" 
-                                @onclick="() => SwitchMode(PtapDataSourceMode.PhysicalPlc)" title="Conexión física directa con PLC Siemens S7-1200 en planta">
-                            🏭 Planta Real (PLC)
+                                @onclick="() => SwitchMode(PtapDataSourceMode.PhysicalPlc)" title="@($"Conexión física directa con PLC Siemens S7-1200 en planta (192.168.1.110 vía {Api.EndpointDisplay})")">
+                            Planta Real (PLC)
                         </button>
                     </div>
                 </div>
@@ -41,20 +41,18 @@
             <span class="status-dot @(Telemetry?.PlcConnected == true ? "ok" : "bad")"></span>
             <span class="status-text @(Telemetry?.PlcConnected == true ? "connected" : "disconnected")">
                 @(Telemetry?.PlcConnected == true 
-                    ? (Api.Simulation.CurrentMode == PtapDataSourceMode.PhysicalPlc ? "PLC FÍSICO CONECTADO (192.168.1.110)" : "SIMULADOR EN LÍNEA (24/7)") 
-                    : "⚠️ PLC DESCONECTADO (SEÑAL PERDIDA)")
+                    ? (Api.Simulation.CurrentMode == PtapDataSourceMode.PhysicalPlc ? $"PLC FÍSICO CONECTADO (192.168.1.110 | {Api.EndpointDisplay})" : "SIMULADOR EN LÍNEA (24/7)") 
+                    : "PLC DESCONECTADO (SEÑAL PERDIDA)")
             </span>
             <span>Watchdog: @FormatNumber("watchdog_plc", "0")</span>
             <span>@LastRefreshText</span>
         </div>
     </header>
 
-
-
     @if (Telemetry?.PlcConnected == false)
     {
         <div class="plc-lost-alert-banner">
-            <span class="alert-icon">🚨</span>
+            <span class="alert-icon-dot"></span>
             <div class="alert-body">
                 <strong>ALERTA DE PROCESO: ENLACE CON EL AUTÓMATA INTERRUMPIDO</strong>
                 <p>No se recibe telemetría del PLC Siemens S7-1200 ni del motor de adquisición. Los mandos de control están bloqueados por seguridad física de la planta.</p>
@@ -76,77 +74,118 @@
             <section class="plant-stage plant-stage-v2" aria-label="Pantalla SCADA PTAP">
                 <img src="images/hidrocontrol-scada.png" alt="HIDROCONTROL PTAP" />
 
-                <!-- Rótulos dinámicos de equipos (Naranja industrial - Desktop) -->
-                <div class="equipment-tag-label tag-ea101">
-                    <span class="tag-code">EA-101</span>
-                    <span class="tag-name">TORRE DE AIREACION</span>
+                <!-- Hotspots interactivos de equipos (Minimalistas: solo visibles en hover o tap) -->
+                <div class="equipment-hotspot hotspot-ea101 @(_activeEquipment == "EA-101" ? "active" : "")" 
+                     @onclick='() => ToggleEquipment("EA-101")' 
+                     tabindex="0"
+                     title="Torre de Aireación">
+                    <span class="hotspot-pin"></span>
+                    <div class="hotspot-popover">
+                        <span class="popover-code">EA-101</span>
+                        <span class="popover-name">Torre de Aireación</span>
+                    </div>
                 </div>
 
-                <div class="equipment-tag-label tag-fh201">
-                    <span class="tag-code">FH-201</span>
-                    <span class="tag-name">FLOCULADOR HIDRAULICO</span>
+                <div class="equipment-hotspot hotspot-fh201 @(_activeEquipment == "FH-201" ? "active" : "")" 
+                     @onclick='() => ToggleEquipment("FH-201")' 
+                     tabindex="0"
+                     title="Floculador Hidráulico">
+                    <span class="hotspot-pin"></span>
+                    <div class="hotspot-popover">
+                        <span class="popover-code">FH-201</span>
+                        <span class="popover-name">Floculador Hidráulico</span>
+                    </div>
                 </div>
 
-                <div class="equipment-tag-label tag-sc301">
-                    <span class="tag-code">SC-301</span>
-                    <span class="tag-name">SEDIMENTADOR LAMELAR</span>
+                <div class="equipment-hotspot hotspot-sc301 @(_activeEquipment == "SC-301" ? "active" : "")" 
+                     @onclick='() => ToggleEquipment("SC-301")' 
+                     tabindex="0"
+                     title="Sedimentador Lamelar">
+                    <span class="hotspot-pin"></span>
+                    <div class="hotspot-popover">
+                        <span class="popover-code">SC-301</span>
+                        <span class="popover-name">Sedimentador Lamelar</span>
+                    </div>
                 </div>
 
-                <div class="equipment-tag-label tag-fc401">
-                    <span class="tag-code">FC-401</span>
-                    <span class="tag-name">FILTRO CARBON ACTIVADO</span>
+                <div class="equipment-hotspot hotspot-fc401 @(_activeEquipment == "FC-401" ? "active" : "")" 
+                     @onclick='() => ToggleEquipment("FC-401")' 
+                     tabindex="0"
+                     title="Filtro Carbón Activado">
+                    <span class="hotspot-pin"></span>
+                    <div class="hotspot-popover">
+                        <span class="popover-code">FC-401</span>
+                        <span class="popover-name">Filtro Carbón Activado</span>
+                    </div>
                 </div>
 
-                <div class="equipment-tag-label tag-tk101">
-                    <span class="tag-code">TK-101</span>
-                    <span class="tag-name">TANQUE AGUA CRUDA</span>
+                <div class="equipment-hotspot hotspot-tk101 @(_activeEquipment == "TK-101" ? "active" : "")" 
+                     @onclick='() => ToggleEquipment("TK-101")' 
+                     tabindex="0"
+                     title="Tanque Agua Cruda">
+                    <span class="hotspot-pin"></span>
+                    <div class="hotspot-popover">
+                        <span class="popover-code">TK-101</span>
+                        <span class="popover-name">Tanque Agua Cruda</span>
+                    </div>
                 </div>
 
-                <div class="equipment-tag-label tag-tk501">
-                    <span class="tag-code">TK-501</span>
-                    <span class="tag-name">TANQUE AGUA TRATADA</span>
+                <div class="equipment-hotspot hotspot-tk501 @(_activeEquipment == "TK-501" ? "active" : "")" 
+                     @onclick='() => ToggleEquipment("TK-501")' 
+                     tabindex="0"
+                     title="Tanque Agua Tratada">
+                    <span class="hotspot-pin"></span>
+                    <div class="hotspot-popover">
+                        <span class="popover-code">TK-501</span>
+                        <span class="popover-name">Tanque Agua Tratada</span>
+                    </div>
                 </div>
 
-                <!-- Cuadros de telemetría de proceso sobre el mímico (Desktop) -->
-                <div class="process-card raw-quality-card">
-                    <span>Agua cruda</span>
-                    <div><small>pH</small><strong>@FormatNumber("ph_agua_cruda", "0.00")</strong></div>
-                    <div><small>Turbidez</small><strong>@FormatNumber("turbidez_agua_cruda", "0.0") NTU</strong></div>
-                    <div><small>Cloro / conduct.</small><strong>@FormatNumber("conductividad_agua_cruda", "0") uS/cm</strong></div>
-                </div>
+                <!-- Menú desplegable interactivo de Agua Tratada con flecha hacia abajo -->
+                <div class="treated-water-interactive-card">
+                    <button type="button" class="btn-treated-water-toggle @(_showTreatedMenu ? "open" : "")" 
+                            @onclick="ToggleTreatedMenu" aria-label="Desplegar datos de Agua Tratada">
+                        <span class="treated-dot"></span>
+                        <span class="treated-text">AGUA TRATADA</span>
+                        <span class="treated-arrow">▼</span>
+                    </button>
 
-                <div class="process-card pump-intake-card">
-                    <span>Entrada bomba B1</span>
-                    <div><small>Presion</small><strong>@FormatNumber("presion_bomba_principal", "0.0") bar</strong></div>
-                    <div><small>Caudal</small><strong>@FormatNumber("caudal_bomba_principal", "0.0") L/min</strong></div>
-                </div>
-
-                <div class="process-card treated-quality-card">
-                    <span>Agua tratada</span>
-                    <div><small>pH</small><strong>@FormatNumber("ph_agua_tratada", "0.00")</strong></div>
-                    <div><small>Turbidez</small><strong>@FormatNumber("turbidez_agua_tratada", "0.0") NTU</strong></div>
-                    <div><small>Cloro / conduct.</small><strong>@FormatNumber("conductividad_agua_tratada", "0") uS/cm</strong></div>
+                    @if (_showTreatedMenu)
+                    {
+                        <div class="treated-water-dropdown animate-fade-in">
+                            <div class="dropdown-item">
+                                <span class="lbl">Turbidez</span>
+                                <strong class="val val-turb">@FormatNumber("turbidez_agua_tratada", "0.00") <small>NTU</small></strong>
+                            </div>
+                            <div class="dropdown-item">
+                                <span class="lbl">pH</span>
+                                <strong class="val val-ph">@FormatNumber("ph_agua_tratada", "0.00") <small>pH</small></strong>
+                            </div>
+                            <div class="dropdown-item">
+                                <span class="lbl">Conductividad</span>
+                                <strong class="val val-cond">@FormatNumber("conductividad_agua_tratada", "0") <small>µS/cm</small></strong>
+                            </div>
+                        </div>
+                    }
                 </div>
             </section>
 
-            <!-- Tarjetas de telemetría de proceso adaptadas para móviles -->
+            <!-- Tarjeta adaptada para móviles (Solo Agua Tratada) -->
             <div class="mobile-process-cards">
-                <div class="mobile-metric-card">
-                    <span class="metric-card-header">💧 Agua Cruda</span>
-                    <div class="metric-card-row"><span>pH:</span><strong>@FormatNumber("ph_agua_cruda", "0.00")</strong></div>
-                    <div class="metric-card-row"><span>Turbidez:</span><strong>@FormatNumber("turbidez_agua_cruda", "0.0") NTU</strong></div>
-                    <div class="metric-card-row"><span>Conductividad:</span><strong>@FormatNumber("conductividad_agua_cruda", "0") µS/cm</strong></div>
-                </div>
-                <div class="mobile-metric-card">
-                    <span class="metric-card-header">⚡ Entrada Bomba B1</span>
-                    <div class="metric-card-row"><span>Presión:</span><strong>@FormatNumber("presion_bomba_principal", "0.0") bar</strong></div>
-                    <div class="metric-card-row"><span>Caudal:</span><strong>@FormatNumber("caudal_bomba_principal", "0.0") L/min</strong></div>
-                </div>
-                <div class="mobile-metric-card">
-                    <span class="metric-card-header">✨ Agua Tratada</span>
-                    <div class="metric-card-row"><span>pH:</span><strong>@FormatNumber("ph_agua_tratada", "0.00")</strong></div>
-                    <div class="metric-card-row"><span>Turbidez:</span><strong>@FormatNumber("turbidez_agua_tratada", "0.0") NTU</strong></div>
-                    <div class="metric-card-row"><span>Conductividad:</span><strong>@FormatNumber("conductividad_agua_tratada", "0") µS/cm</strong></div>
+                <div class="mobile-metric-card mobile-treated-card">
+                    <button type="button" class="mobile-treated-toggle @(_showTreatedMenu ? "open" : "")" @onclick="ToggleTreatedMenu">
+                        <span class="treated-dot"></span>
+                        <span class="mobile-toggle-title">Agua Tratada</span>
+                        <span class="treated-arrow">▼</span>
+                    </button>
+                    @if (_showTreatedMenu)
+                    {
+                        <div class="mobile-metric-content animate-fade-in">
+                            <div class="metric-card-row"><span>Turbidez:</span><strong>@FormatNumber("turbidez_agua_tratada", "0.00") NTU</strong></div>
+                            <div class="metric-card-row"><span>pH:</span><strong>@FormatNumber("ph_agua_tratada", "0.00") pH</strong></div>
+                            <div class="metric-card-row"><span>Conductividad:</span><strong>@FormatNumber("conductividad_agua_tratada", "0") µS/cm</strong></div>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -197,13 +236,13 @@
             </AuthorizeView>
 
             <section class="panel-section compact-metrics">
-                <h2>Calidad</h2>
-                <div class="metric-row"><span>pH cruda</span><strong>@FormatNumber("ph_agua_cruda", "0.00") <small>pH</small></strong></div>
-                <div class="metric-row"><span>Turbidez cruda</span><strong>@FormatNumber("turbidez_agua_cruda", "0.0") <small>NTU</small></strong></div>
-                <div class="metric-row"><span>Conductividad cruda</span><strong>@FormatNumber("conductividad_agua_cruda", "0") <small>uS/cm</small></strong></div>
+                <h2>Calidad Agua Tratada</h2>
                 <div class="metric-row"><span>pH tratada</span><strong>@FormatNumber("ph_agua_tratada", "0.00") <small>pH</small></strong></div>
-                <div class="metric-row"><span>Turbidez tratada</span><strong>@FormatNumber("turbidez_agua_tratada", "0.0") <small>NTU</small></strong></div>
-                <div class="metric-row"><span>Conductividad tratada</span><strong>@FormatNumber("conductividad_agua_tratada", "0") <small>uS/cm</small></strong></div>
+                <div class="metric-row"><span>Turbidez tratada</span><strong>@FormatNumber("turbidez_agua_tratada", "0.00") <small>NTU</small></strong></div>
+                <div class="metric-row"><span>Conductividad tratada</span><strong>@FormatNumber("conductividad_agua_tratada", "0") <small>µS/cm</small></strong></div>
+                <a href="historicos" class="btn-quality-charts-link">
+                    Ver Curvas y Gráficas de Proceso &rarr;
+                </a>
             </section>
 
             <section class="panel-section status-box">
@@ -245,6 +284,11 @@
     private string LastCommandText = "Sin comando";
     private PeriodicTimer? timer;
     private CancellationTokenSource? cts;
+    private bool _showTreatedMenu = false;
+    private string? _activeEquipment = null;
+
+    private void ToggleTreatedMenu() => _showTreatedMenu = !_showTreatedMenu;
+    private void ToggleEquipment(string id) => _activeEquipment = _activeEquipment == id ? null : id;
 
     protected override async Task OnInitializedAsync()
     {
@@ -345,4 +389,27 @@
         timer?.Dispose();
     }
 }
+
+<style>
+.btn-quality-charts-link {
+    display: block;
+    margin-top: 0.85rem;
+    padding: 0.55rem 0.75rem;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 8px;
+    color: #38bdf8;
+    text-decoration: none;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+.btn-quality-charts-link:hover {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: #38bdf8;
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+</style>
 

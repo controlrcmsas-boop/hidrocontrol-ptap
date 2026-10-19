@@ -3,21 +3,17 @@
 @rendermode InteractiveServer
 @using PTAPControl.Models
 @using PTAPControl.Services
+@using PTAPControl.Components.Layout
 @inject NodeRedApiClient Api
 
-@inject GeminiAiService Ai
-@inject TypeSafeAiClientService TypeSafe
-@inject PtapKnowledgeService Knowledge
-
-<PageTitle>Configuracion</PageTitle>
+<PageTitle>Configuración — HIDROCONTROL</PageTitle>
 
 <section class="config-page">
     <header class="scada-header">
         <div>
-            <p class="eyebrow">PERFIL TECNICO &bull; V2.2</p>
             <h1>Configuración del Sistema</h1>
         </div>
-        <button class="refresh-button" @onclick="LoadAsync">Actualizar</button>
+        <TopUserNav />
     </header>
 
     @if (!string.IsNullOrWhiteSpace(StatusMessage))
@@ -25,111 +21,14 @@
         <div class="alert-line">@StatusMessage</div>
     }
 
-    <!-- Panel de Gestión de Inteligencia Artificial (TypeSafe AI Jev) -->
-    <div class="panel-section" style="margin-bottom: 20px; border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(15, 23, 42, 0.65);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div>
-                <h2 style="margin: 0; color: #f8fafc; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
-                    <span>🛡️</span>
-                    <span>Motor de IA: TypeSafe AI (Jev System One)</span>
-                </h2>
-                <p style="margin: 4px 0 0 0; color: var(--muted); font-size: 0.86rem;">
-                    Decisiones probabilísticas estructuradas y factor de confianza calibrado para control SCADA de PTAP.
-                </p>
-            </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <span class="ai-status-badge @(TypeSafeStatus.IsOnline ? "optimo" : "atencion")">
-                    @(TypeSafeStatus.IsOnline ? "TypeSafe Conectado" : "TypeSafe Standby")
-                </span>
-                <button type="button" class="refresh-button" style="padding: 4px 10px; font-size: 0.8rem;" @onclick="CheckTypeSafeAsync">
-                    🔄 Probar Conexión TypeSafe
-                </button>
-            </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; background: rgba(11, 21, 27, 0.7); padding: 14px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 16px;">
-            <div>
-                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Proveedor Activo</span>
-                <div style="color: #38bdf8; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">
-                    🛡️ TypeSafe AI (API Tipada)
-                </div>
-                <small style="color: var(--muted);">Endpoint: @TypeSafe.Endpoint</small>
-            </div>
-            <div>
-                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Modelo Jev</span>
-                <div style="color: #e5e7eb; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">@TypeSafeStatus.Model</div>
-                <small style="color: #48d597;">@TypeSafeStatus.Details</small>
-            </div>
-            <div>
-                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Límites de Seguridad (Dosificación)</span>
-                <div style="color: #e5e7eb; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">
-                    Sulfato: @TypeSafe.SulfateMinDose - @TypeSafe.SulfateMaxDose mg/L
-                </div>
-                <small style="color: #48d597;">Cloro: @TypeSafe.ChlorineMinDose - @TypeSafe.ChlorineMaxDose mg/L</small>
-            </div>
-            <div>
-                <span style="color: var(--muted); font-size: 0.78rem; text-transform: uppercase;">Base de Conocimiento PTAP</span>
-                <div style="color: #6ee7b7; font-weight: 700; font-size: 0.95rem; margin-top: 2px;">
-                    @Knowledge.Data.EquipmentSpecs.Count Equipos &bull; @Knowledge.Data.StandardOperatingProcedures.Count SOPs
-                </div>
-                <small style="color: var(--muted);">Reglas operativas y límites normativos de Resolución 2115</small>
-            </div>
-        </div>
-
-        <!-- Formulario para Capacitar al Agente con Nuevas Reglas -->
-        <div style="background: rgba(17, 31, 39, 0.9); padding: 14px; border-radius: 6px; border-left: 3px solid #a855f7;">
-            <h3 style="margin: 0 0 8px 0; color: #f3e8ff; font-size: 0.96rem; display: flex; align-items: center; gap: 6px;">
-                <span>🎓</span>
-                <span>Capacitar al Agente (Enseñar Nueva Regla Operativa de Planta)</span>
-            </h3>
-            <p style="margin: 0 0 10px 0; font-size: 0.84rem; color: var(--muted);">
-                Escribe una condición de proceso y la acción que el supervisor virtual debe aplicar cuando esa condición ocurra:
-            </p>
-
-            <div class="teach-agent-form-grid">
-                <label style="display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: #cbd5e1;">
-                    Condición (Ej: "Turbidez de agua cruda > 80 NTU")
-                    <input type="text" style="background: #0b151b; border: 1px solid var(--line); border-radius: 4px; padding: 7px 10px; color: #fff;" 
-                           @bind="NewRuleCondition" placeholder="Ej: pH de agua cruda < 6.8 con caudal > 15 L/min" />
-                </label>
-                <label style="display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: #cbd5e1;">
-                    Acción Técnica Recomendada
-                    <input type="text" style="background: #0b151b; border: 1px solid var(--line); border-radius: 4px; padding: 7px 10px; color: #fff;" 
-                           @bind="NewRuleAction" placeholder="Ej: Dosificar alcalinizante o subir coagulante a 42 mg/L" />
-                </label>
-                <button type="button" class="refresh-button" style="padding: 7px 14px; font-weight: 700;" @onclick="AddRuleAsync">
-                    + Enseñar Regla
-                </button>
-            </div>
-
-            @if (Knowledge.Data.LearnedOperatorRules.Count > 0)
-            {
-                <div style="margin-top: 14px;">
-                    <strong style="font-size: 0.84rem; color: var(--cyan);">Reglas Aprendidas por el Agente:</strong>
-                    <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
-                        @foreach (var rule in Knowledge.Data.LearnedOperatorRules)
-                        {
-                            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(7, 11, 14, 0.7); padding: 6px 12px; border-radius: 4px; font-size: 0.82rem;">
-                                <div>
-                                    <strong style="color: #c084fc;">[@rule.Id] SI</strong> @rule.Condition &rarr; <span style="color: #48d597;">@rule.Action</span>
-                                </div>
-                                <button type="button" class="btn-remove-pill" title="Eliminar regla" @onclick="() => RemoveRuleAsync(rule.Id)">×</button>
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
-        </div>
-    </div>
-
     <div class="notification-channels-grid">
         <section class="panel-section email-config">
             <div class="channel-header">
-                <h2>Correos para alarmas criticas</h2>
-                <p>Los destinatarios activos recibiran aviso por email cuando se registre una alarma con severidad critical.</p>
+                <h2>Notificaciones por Correo Electrónico</h2>
+                <p>Destinatarios para alertas con severidad crítica.</p>
             </div>
 
-            <div class="email-form">
+            <div class="channel-form">
                 <label>
                     Nombre
                     <input type="text" @bind="NewEmailName" placeholder="Operador / responsable" />
@@ -138,17 +37,17 @@
                     Correo
                     <input type="email" @bind="NewEmailAddress" placeholder="correo@empresa.com" />
                 </label>
-                <button class="refresh-button" @onclick="AddEmailAsync">Agregar</button>
+                <button class="btn-pill-action primary" @onclick="AddEmailAsync">Agregar</button>
             </div>
 
-            <div class="email-list">
+            <div class="contact-pill-list">
                 @if (NotificationEmails.Count == 0)
                 {
                     <span class="empty-hint">No hay correos registrados.</span>
                 }
                 @foreach (var email in NotificationEmails)
                 {
-                    <div class="email-pill">
+                    <div class="contact-pill">
                         <strong>@email.Email</strong>
                         <span>@(string.IsNullOrWhiteSpace(email.Name) ? "Sin nombre" : email.Name)</span>
                     </div>
@@ -157,66 +56,53 @@
         </section>
 
         <section class="panel-section whatsapp-config">
-            <div class="channel-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
+            <div class="channel-header flex-header">
                 <div>
-                    <h2>WhatsApp para alarmas criticas</h2>
-                    <p>Alertas automaticas a celulares registrados directamente desde la linea oficial de la planta.</p>
+                    <h2>Notificaciones por WhatsApp</h2>
+                    <p>Alertas automáticas a celulares registrados.</p>
                 </div>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button type="button" class="refresh-button" style="padding: 6px 12px; font-size: 0.85rem;" @onclick="SendTestWhatsAppAsync">
-                        🧪 Enviar prueba
+                <div class="channel-actions">
+                    <button type="button" class="btn-pill-action" @onclick="SendTestWhatsAppAsync">
+                        Enviar prueba
                     </button>
-                    <button type="button" class="refresh-button" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.85rem; background: rgba(37, 211, 102, 0.18); border-color: rgba(37, 211, 102, 0.4); color: #25d366;" @onclick="OpenQrInfo">
-                        📲 Vincular QR Emisor
+                    <button type="button" class="btn-pill-action" @onclick="OpenQrInfo">
+                        Vincular QR
                     </button>
                 </div>
             </div>
 
-            <div class="email-form whatsapp-form">
+            <div class="channel-form">
                 <label>
-                    Nombre operador / responsable
+                    Nombre
                     <input type="text" @bind="NewWaName" placeholder="Ingeniero / Operador" />
                 </label>
                 <label>
-                    Numero celular (con codigo pais)
+                    Número celular (con código país)
                     <input type="tel" @bind="NewWaPhone" placeholder="+573001234567" />
                 </label>
-                <button class="refresh-button" @onclick="AddWhatsAppAsync">Agregar</button>
+                <button class="btn-pill-action primary" @onclick="AddWhatsAppAsync">Agregar</button>
             </div>
 
-            <div class="email-list whatsapp-list">
+            <div class="contact-pill-list">
                 @if (NotificationWhatsApps.Count == 0)
                 {
-                    <span class="empty-hint">No hay numeros de WhatsApp registrados.</span>
+                    <span class="empty-hint">No hay números de WhatsApp registrados.</span>
                 }
                 @foreach (var wa in NotificationWhatsApps)
                 {
-                    <div class="email-pill whatsapp-pill">
+                    <div class="contact-pill">
                         <div>
                             <strong>@wa.PhoneNumber</strong>
                             <span>@(string.IsNullOrWhiteSpace(wa.Name) ? "Sin nombre" : wa.Name)</span>
                         </div>
-                        <button type="button" class="btn-remove-pill" title="Eliminar contacto" @onclick="() => DeleteWhatsAppAsync(wa.Id)">×</button>
+                        <button type="button" class="btn-remove-pill" title="Eliminar contacto" @onclick="() => DeleteWhatsAppAsync(wa.Id)">✕</button>
                     </div>
                 }
             </div>
         </section>
     </div>
 
-    <div class="panel-section" style="margin-bottom: 18px; border-left: 3px solid var(--cyan); background: rgba(17, 31, 39, 0.9);">
-        <h3 style="margin: 0 0 6px 0; color: var(--cyan); font-size: 0.95rem; font-weight: 700;">ℹ️ Guía de Configuración de Alarmas</h3>
-        <p style="margin: 0 0 6px 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4;">
-            • <strong>Casilla Activa:</strong> Si está marcada (✅), el sistema supervisa la variable y activará la alarma cuando se salga de los límites. Si está desmarcada (❌), la alarma se <em>silencia/deshabilita</em> (útil en mantenimientos o calibraciones).
-        </p>
-        <p style="margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4;">
-            • <strong>Niveles de Severidad:</strong> 
-            <span style="color: #93a9af;"><strong>low:</strong> Registro informativo</span> | 
-            <span style="color: var(--yellow);"><strong>medium:</strong> Advertencia operativa en pantalla</span> | 
-            <span style="color: #ff9999;"><strong>high:</strong> Alarma prioritaria roja</span> | 
-            <span style="color: #ff4d4d; font-weight: bold;"><strong>critical:</strong> Parpadeo de emergencia + Envío de WhatsApp y Correo</span>.
-        </p>
-    </div>
-
+    <!-- Lista de Límites -->
     <div class="config-list">
         @foreach (var limit in Limits)
         {
@@ -252,11 +138,11 @@
                 else
                 {
                     <label>
-                        Limite bajo
+                        Límite bajo
                         <input type="number" step="0.01" @bind="limit.LimitLow" />
                     </label>
                     <label>
-                        Limite alto
+                        Límite alto
                         <input type="number" step="0.01" @bind="limit.LimitHigh" />
                     </label>
                 }
@@ -266,7 +152,7 @@
                     <input type="text" @bind="limit.Message" />
                 </label>
 
-                <button class="refresh-button btn-save-limit @(RecentlySavedIds.Contains(limit.Id) ? "saved" : "")" @onclick="() => SaveAsync(limit)">
+                <button class="btn-pill-action @(RecentlySavedIds.Contains(limit.Id) ? "saved" : "primary")" @onclick="() => SaveAsync(limit)">
                     @(RecentlySavedIds.Contains(limit.Id) ? "✓ Guardado" : "Guardar")
                 </button>
             </section>
@@ -284,47 +170,10 @@
     private string? NewEmailAddress;
     private string? NewWaName;
     private string? NewWaPhone;
-    private string? NewRuleCondition;
-    private string? NewRuleAction;
-    private (bool IsOnline, string Model, long LatencyMs, string Details) TypeSafeStatus = (false, "jev-latest", 0, "No verificado");
-    private (bool IsOnline, string Model, string Details) OllamaStatus = (false, "llama3.2:3b", "No verificado");
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
-        await CheckTypeSafeAsync();
-    }
-
-    private async Task CheckTypeSafeAsync()
-    {
-        TypeSafeStatus = await TypeSafe.CheckStatusAsync();
-        StateHasChanged();
-    }
-
-    private async Task CheckOllamaAsync()
-    {
-        OllamaStatus = await Ai.CheckLocalOllamaStatusAsync();
-        StateHasChanged();
-    }
-
-    private async Task AddRuleAsync()
-    {
-        if (string.IsNullOrWhiteSpace(NewRuleCondition) || string.IsNullOrWhiteSpace(NewRuleAction))
-        {
-            StatusMessage = "Debe ingresar una condición y una acción recomendada para capacitar al agente.";
-            return;
-        }
-
-        await Knowledge.AddRuleAsync(NewRuleCondition, NewRuleAction);
-        StatusMessage = $"✓ Nueva regla aprendida por el agente: SI {NewRuleCondition} -> {NewRuleAction}";
-        NewRuleCondition = null;
-        NewRuleAction = null;
-    }
-
-    private async Task RemoveRuleAsync(string id)
-    {
-        await Knowledge.RemoveRuleAsync(id);
-        StatusMessage = $"Regla {id} eliminada de la base de conocimiento.";
     }
 
     private async Task LoadAsync()
@@ -462,3 +311,262 @@
 
     private static string DisplayName(AlarmLimit limit) => string.IsNullOrWhiteSpace(limit.NombreVisible) ? limit.TagId : limit.NombreVisible;
 }
+
+<style>
+    .config-page {
+        padding: 16px 22px 3rem;
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .panel-section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 1.35rem;
+        box-sizing: border-box;
+    }
+
+    .panel-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 1rem;
+    }
+
+    .panel-section-header h2 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #FFFFFF;
+        margin: 0;
+    }
+
+    .panel-section-header p {
+        font-size: 0.85rem;
+        color: #8C93A4;
+        margin: 4px 0 0;
+    }
+
+    .notification-channels-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        margin-bottom: 0.5rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    @@media (min-width: 960px) {
+        .notification-channels-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    .channel-header h2 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #FFFFFF;
+        margin: 0 0 4px;
+    }
+
+    .channel-header p {
+        font-size: 0.84rem;
+        color: #8C93A4;
+        margin: 0 0 12px;
+    }
+
+    .flex-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .channel-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .channel-form {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        align-items: end;
+        margin-bottom: 12px;
+    }
+
+    @@media (min-width: 600px) {
+        .channel-form {
+            grid-template-columns: 1fr 1fr auto;
+        }
+    }
+
+    .channel-form label {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        font-size: 0.82rem;
+        color: #CBD5E1;
+    }
+
+    .channel-form input,
+    .config-row input,
+    .config-row select {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: #FFFFFF;
+        padding: 8px 12px;
+        font-size: 0.84rem;
+        outline: none;
+        box-sizing: border-box;
+    }
+
+    .channel-form input:focus,
+    .config-row input:focus,
+    .config-row select:focus {
+        border-color: #38BDF8;
+    }
+
+    .contact-pill-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .contact-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 9999px;
+        font-size: 0.84rem;
+        color: #CBD5E1;
+    }
+
+    .contact-pill strong {
+        color: #38BDF8;
+        font-weight: 600;
+    }
+
+    .btn-remove-pill {
+        background: transparent;
+        border: none;
+        color: #8C93A4;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 9999px;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+    }
+
+    .btn-remove-pill:hover {
+        background: rgba(239, 68, 68, 0.15);
+        color: #EF4444;
+    }
+
+    .config-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .config-row {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 1rem 1.25rem;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        align-items: end;
+        box-sizing: border-box;
+    }
+
+    @@media (min-width: 1024px) {
+        .config-row {
+            grid-template-columns: minmax(200px, 1.4fr) 60px 100px 90px 90px minmax(160px, 1fr) 110px;
+        }
+    }
+
+    .config-main strong {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #FFFFFF;
+        display: block;
+        margin-bottom: 2px;
+    }
+
+    .config-main span {
+        font-size: 0.84rem;
+        color: #94A3B8;
+        display: block;
+    }
+
+    .config-main small {
+        font-size: 0.78rem;
+        color: #64748B;
+        display: block;
+        margin-top: 2px;
+    }
+
+    .config-row label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 0.8rem;
+        color: #8C93A4;
+        font-weight: 500;
+    }
+
+    .btn-pill-action {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        color: #94A3B8;
+        border-radius: 9999px;
+        padding: 0.45rem 1.2rem;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: 'Inter', sans-serif;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    .btn-pill-action:hover {
+        background: #353842;
+        color: #FFFFFF;
+    }
+
+    .btn-pill-action.primary {
+        background: #38BDF8;
+        border-color: #38BDF8;
+        color: #0F172A;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);
+    }
+
+    .btn-pill-action.primary:hover {
+        background: #7DD3FC;
+        color: #0F172A;
+    }
+
+    .btn-pill-action.saved {
+        background: #38BDF8;
+        border-color: #38BDF8;
+        color: #0F172A;
+        font-weight: 600;
+    }
+</style>

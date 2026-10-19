@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title HIDROCONTROL PTAP - Diagnóstico de Conexión Servidor y PLC
+title HIDROCONTROL PTAP - Diagn?stico de Conexi?n Servidor y PLC
 color 0b
 
 echo ===============================================================================
-echo            HIDROCONTROL PTAP V2.2 - DIAGNÓSTICO INTEGRAL DE PLANTA
+echo            HIDROCONTROL PTAP V2.2 - DIAGN?STICO INTEGRAL DE PLANTA
 echo ===============================================================================
 echo.
 
@@ -31,26 +31,26 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "& {
             Write-Host ('      [i] Turbiedad Cruda: ' + $data.turbiedad_cruda + ' NTU') -ForegroundColor Gray
             Write-Host ('      [i] Nivel Tanque: ' + $data.nivel_tanque_lavado + ' %') -ForegroundColor Gray
         } else {
-            Write-Host ('      [!] Node-RED respondió con código: ' + $resp.StatusCode) -ForegroundColor Yellow
+            Write-Host ('      [!] Node-RED respondi? con c?digo: ' + $resp.StatusCode) -ForegroundColor Yellow
         }
     } catch {
         Write-Host ('      [-] [FALLO] No se pudo conectar a ' + $baseUrl + ' (' + $_.Exception.Message + ')') -ForegroundColor Red
-        Write-Host '          (Verifica que Node-RED esté corriendo en el servidor con Iniciar-TODO.bat).' -ForegroundColor Gray
+        Write-Host '          (Verifica que Node-RED est? corriendo en el servidor con Iniciar-TODO.bat).' -ForegroundColor Gray
     }
     Write-Host ''
     
-    Write-Host '[3/4] Probando comunicación física con PLC Siemens S7-1200 (192.168.1.110)...' -ForegroundColor Cyan
+    Write-Host '[3/4] Probando comunicaci?n f?sica con PLC Siemens S7-1200 (192.168.1.110)...' -ForegroundColor Cyan
     $ping = Test-Connection -ComputerName 192.168.1.110 -Count 2 -Quiet -ErrorAction SilentlyContinue
     if ($ping) {
         Write-Host '      [+] [EXITO] PLC Siemens S7-1200 (192.168.1.110) respondiendo en red local.' -ForegroundColor Green
     } else {
         Write-Host '      [!] [AVISO] El PLC (192.168.1.110) no responde a ping directo.' -ForegroundColor Yellow
-        Write-Host '          (Normal si el cable Ethernet está desconectado temporalmente por programación).' -ForegroundColor Gray
+        Write-Host '          (Normal si el cable Ethernet est? desconectado temporalmente por programaci?n).' -ForegroundColor Gray
     }
     Write-Host ''
     
     Write-Host '[4/4] Resumen general:' -ForegroundColor Cyan
-    Write-Host '      Una vez el PLC esté conectado físicamente, ejecuta Iniciar-TODO-Con-Internet.bat' -ForegroundColor Gray
+    Write-Host '      Una vez el PLC est? conectado f?sicamente, ejecuta Iniciar-TODO-Con-Internet.bat' -ForegroundColor Gray
     Write-Host '      para levantar Node-RED, WhatsApp, el Dashboard y el enlace web a Cloudflare.' -ForegroundColor Gray
 }"
 

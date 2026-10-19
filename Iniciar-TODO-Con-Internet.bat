@@ -1,13 +1,13 @@
 @echo off
 chcp 65001 >nul
-title HIDROCONTROL PTAP V2.2 - Inicio Integral Producción (Local + Internet)
+title HIDROCONTROL PTAP V2.2 - Inicio Integral Producci?n (Local + Internet)
 color 0b
 
 echo ==============================================================================
-echo       HIDROCONTROL PTAP V2.2 - INICIO COMPLETO PLANTA CON TÚNEL CLOUDFLARE
+echo       HIDROCONTROL PTAP V2.2 - INICIO COMPLETO PLANTA CON T?NEL CLOUDFLARE
 echo ==============================================================================
 echo.
-echo [*] 1/4 Iniciando motor de adquisición Node-RED (Puerto 1880)...
+echo [*] 1/4 Iniciando motor de adquisici?n Node-RED (Puerto 1880)...
 start "1. Node-RED (PLC Siemens)" cmd /k "node-red.cmd"
 timeout /t 3 /nobreak >nul
 
@@ -19,13 +19,13 @@ echo [*] 3/4 Iniciando Servidor SCADA Blazor (Puerto 5088)...
 start "3. Dashboard SCADA" cmd /k "cd /d %~dp0dashboard\PTAPControl && dotnet run --urls http://0.0.0.0:5088"
 timeout /t 4 /nobreak >nul
 
-echo [*] 4/4 Conectando Túnel Seguro Cloudflare a Internet...
+echo [*] 4/4 Conectando T?nel Seguro Cloudflare a Internet...
 set CONFIG_FILE=%~dp0tools\tunnel-token.txt
 if exist "%CONFIG_FILE%" (
     set /p TOKEN=<"%CONFIG_FILE%"
     start "4. Tunel Cloudflare Edge" cmd /k "title Cloudflare Tunnel && "%~dp0tools\cloudflared.exe" tunnel run --token %TOKEN%"
 ) else (
-    echo [AVISO] No se encontró token en tools\tunnel-token.txt. Ejecuta Iniciar-Tunel-Cloudflare-Produccion.bat para configurarlo.
+    echo [AVISO] No se encontr? token en tools\tunnel-token.txt. Ejecuta Iniciar-Tunel-Cloudflare-Produccion.bat para configurarlo.
 )
 
 timeout /t 2 /nobreak >nul

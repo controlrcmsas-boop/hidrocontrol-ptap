@@ -1,0 +1,67 @@
+[
+    {
+        "id": "tab_pantalla_seeku",
+        "type": "tab",
+        "label": "Pantalla SEEKU HMI",
+        "disabled": false,
+        "info": "Enlace Modbus con la pantalla táctil SEEKU WSB7048R en COM3"
+    },
+    {
+        "id": "modbus_server_seeku",
+        "type": "modbus-server",
+        "z": "tab_pantalla_seeku",
+        "name": "Servidor Modbus SEEKU",
+        "logEnabled": false,
+        "hostname": "0.0.0.0",
+        "port": "5020",
+        "responseDelay": 50,
+        "delayUnit": "ms",
+        "coilsBufferSize": 1024,
+        "holdingRegistersBufferSize": 1024,
+        "inputRegistersBufferSize": 1024,
+        "discreteInputsBufferSize": 1024,
+        "showStatusActivities": true,
+        "showErrors": true,
+        "x": 220,
+        "y": 140,
+        "wires": [
+            [
+                "fn_process_screen_coils"
+            ],
+            [],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "fn_process_screen_coils",
+        "type": "function",
+        "z": "tab_pantalla_seeku",
+        "name": "Procesar Botones Pantalla",
+        "func": "const coils = msg.payload || [];\n// Coil 0: Bomba | Coil 1: Dosificador 1 | Coil 2: Dosificador 2\nconst bomba = coils[0] ? true : false;\nconst dosif1 = coils[1] ? true : false;\nconst dosif2 = coils[2] ? true : false;\n\nnode.warn(`[PANTALLA SEEKU] Bomba: ${bomba} | Dosif 1: ${dosif1} | Dosif 2: ${dosif2}`);\n\nmsg.payload = {\n    bomba,\n    dosificador1: dosif1,\n    dosificador2: dosif2,\n    source: 'SEEKU_HMI_SCREEN',\n    timestamp: new Date().toISOString()\n};\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 480,
+        "y": 140,
+        "wires": [
+            [
+                "debug_pantalla_out"
+            ]
+        ]
+    },
+    {
+        "id": "debug_pantalla_out",
+        "type": "debug",
+        "z": "tab_pantalla_seeku",
+        "name": "Debug Botones Pantalla",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 720,
+        "y": 140,
+        "wires": []
+    }
+]

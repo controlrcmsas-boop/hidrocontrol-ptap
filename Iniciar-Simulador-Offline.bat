@@ -4,10 +4,10 @@ chcp 65001 >nul
 color 0b
 
 echo ===============================================================================
-echo        HIDROCONTROL PTAP V2.2 - SIMULADOR ESTOCÁSTICO OFFLINE
+echo        HIDROCONTROL PTAP V2.2 - SIMULADOR ESTOC?STICO OFFLINE
 echo ===============================================================================
 echo.
-echo [*] Iniciando servidor de simulación en http://localhost:1881...
+echo [*] Iniciando servidor de simulaci?n en http://localhost:1881...
 echo.
 
 start "Simulador PTAP (Puerto 1881)" cmd /k "cd /d %~dp0simulator && node ptap-simulator.js"

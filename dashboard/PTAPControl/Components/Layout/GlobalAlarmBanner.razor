@@ -2,7 +2,7 @@
 @implements IAsyncDisposable
 @inject PTAPControl.Services.NodeRedApiClient Api
 
-<div class="global-alarm-banner @(ActiveAlarmCount > 0 ? "active" : "") @(HasCriticalAlarm ? "critical" : "")">
+<div class="global-alarm-banner @(IsActive ? "active" : "") @(IsCritical ? "critical" : "")">
     <div class="alarm-beacon" aria-hidden="true"></div>
     <div>
         <strong>@AlarmBannerTitle</strong>
@@ -12,19 +12,32 @@
 </div>
 
 @code {
+    [Parameter]
+    public bool? PlcConnected { get; set; }
+
     private int ActiveAlarmCount;
     private bool HasCriticalAlarm;
     private string? LatestAlarmMessage;
     private PeriodicTimer? alarmTimer;
     private CancellationTokenSource? alarmCts;
 
-    private string AlarmBannerTitle => ActiveAlarmCount == 0
-        ? "Sin alarmas activas"
-        : HasCriticalAlarm ? "Alarma critica activa" : "Alarmas activas";
+    private bool IsPlcInterrupted => PlcConnected == false;
+    private bool IsActive => IsPlcInterrupted || ActiveAlarmCount > 0;
+    private bool IsCritical => IsPlcInterrupted || HasCriticalAlarm;
 
-    private string AlarmBannerText => ActiveAlarmCount == 0
-        ? "Sistema sin eventos activos reportados."
-        : $"{ActiveAlarmCount} activa(s). {LatestAlarmMessage}";
+    private string AlarmBannerTitle =>
+        IsPlcInterrupted
+            ? "ALERTA DE PROCESO: ENLACE CON EL AUTÓMATA INTERRUMPIDO"
+            : ActiveAlarmCount == 0
+                ? "Sin alarmas activas"
+                : HasCriticalAlarm ? "Alarma crítica activa" : "Alarmas activas";
+
+    private string AlarmBannerText =>
+        IsPlcInterrupted
+            ? "No se recibe telemetría del PLC Siemens S7-1200 ni del motor de adquisición. Los mandos de control están bloqueados por seguridad física de la planta."
+            : ActiveAlarmCount == 0
+                ? "Sistema sin eventos activos reportados."
+                : $"{ActiveAlarmCount} activa(s). {LatestAlarmMessage}";
 
     protected override async Task OnInitializedAsync()
     {

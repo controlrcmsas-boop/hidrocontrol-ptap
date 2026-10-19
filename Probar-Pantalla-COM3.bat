@@ -1,0 +1,9 @@
+@echo off
+chcp 65001 >nul
+title HIDROCONTROL - Probar Pantalla SEEKU en COM3
+color 0b
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$portName = 'COM3'; $baudRate = 9600; Write-Host '===============================================================================' -ForegroundColor Cyan; Write-Host ('   HIDROCONTROL PTAP - DIAGNOSTICO EN VIVO DE PANTALLA SEEKU (' + $portName + ' @ ' + $baudRate + ')') -ForegroundColor Cyan; Write-Host '===============================================================================' -ForegroundColor Cyan; Write-Host ''; try { $port = New-Object System.IO.Ports.SerialPort $portName, $baudRate, [System.IO.Ports.Parity]::None, 8, [System.IO.Ports.StopBits]::One; $port.ReadTimeout = 500; $port.WriteTimeout = 500; $port.Open(); Write-Host ('[+] [PUERTO ABIERTO] Escuchando comunicacion de la pantalla en ' + $portName + '...') -ForegroundColor Green; Write-Host '    --> Toca cualquier boton en la pantalla tactil (BOMBA / DOSIFICADOR)...' -ForegroundColor White; Write-Host '    --> Presiona Ctrl + C para detener la prueba en cualquier momento.' -ForegroundColor Gray; Write-Host ''; $buffer = New-Object byte[] 256; while ($true) { if ($port.BytesToRead -gt 0) { $bytesRead = $port.Read($buffer, 0, [Math]::Min($port.BytesToRead, $buffer.Length)); if ($bytesRead -gt 0) { $hex = ($buffer[0..($bytesRead - 1)] | ForEach-Object { $_.ToString('X2') }) -join ' '; $time = Get-Date -Format 'HH:mm:ss.fff'; Write-Host ('[' + $time + '] [RECIBIDO DE PANTALLA]: ' + $hex) -ForegroundColor Green; if ($bytesRead -ge 6 -and ($buffer[1] -eq 5 -or $buffer[1] -eq 6)) { $port.Write($buffer, 0, $bytesRead); Write-Host ('[' + $time + '] [ECO ENVIADO A PANTALLA]: Orden confirmada') -ForegroundColor Cyan; } } } Start-Sleep -Milliseconds 50; } } catch { Write-Host ('[-] ERROR abriendo ' + $portName + ' : ' + $_.Exception.Message) -ForegroundColor Red; } finally { if ($port -and $port.IsOpen) { $port.Close() } }"
+
+echo.
+pause

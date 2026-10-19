@@ -1,0 +1,13 @@
+{
+  "version": "1.2.0-jev",
+  "lastTrainedAt": "2026-10-18T18:00:00.000Z",
+  "source": "JEV_CLOUD_TYPESAFE",
+  "turbidityHighThreshold": 5.0,
+  "turbidityOptimalThreshold": 2.0,
+  "phMinThreshold": 6.5,
+  "phMaxThreshold": 8.5,
+  "sulfateDefaultDosePpm": 25.0,
+  "chlorineDefaultDosePpm": 1.5,
+  "dryRunBypass": true,
+  "notes": "Paquete de criterio generado por TypeSafe JEV para control óptimo de coagulación y supervivencia local."
+}

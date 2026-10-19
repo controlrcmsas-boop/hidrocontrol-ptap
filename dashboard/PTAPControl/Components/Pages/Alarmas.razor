@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @using PTAPControl.Models
 @using PTAPControl.Services
+@using PTAPControl.Components.Layout
 @inject NodeRedApiClient Api
 
 <PageTitle>Alarmas</PageTitle>
@@ -10,16 +11,29 @@
 <section class="alarm-page">
     <header class="scada-header">
         <div>
-            <p class="eyebrow">HIDROCONTROL PTAP</p>
-            <h1>Alarmas</h1>
+            <h1>Alarmas del Sistema</h1>
         </div>
-        <button class="refresh-button" @onclick="LoadAsync">Actualizar</button>
+        <div class="header-actions">
+            <button class="btn-pill-action" @onclick="LoadAsync">Actualizar</button>
+            <TopUserNav />
+        </div>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(ErrorMessage))
     {
         <div class="alert-line">@ErrorMessage</div>
     }
+
+    <!-- Guía de Configuración y Criterios de Alarmas para el Técnico -->
+    <div class="alarm-guide-card">
+        <h3>Guía de Configuración y Criterios de Alarmas</h3>
+        <p>
+            • <strong>Supervisión de Calidad:</strong> El sistema evalúa continuamente los límites de pH (6.5 — 8.5), Turbidez (&le; 2.0 NTU) y Conductividad (&le; 1.000 µS/cm).
+        </p>
+        <p>
+            • <strong>Niveles de Severidad:</strong> low (registro informativo), medium (advertencia operativa en consola), high (alarma prioritaria en pantalla), critical (alerta crítica con notificación por correo y WhatsApp).
+        </p>
+    </div>
 
     <section class="panel-section alarm-summary">
         <h2>Alarmas activas</h2>
@@ -114,3 +128,27 @@
         return "-";
     }
 }
+
+<style>
+.alarm-guide-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 1.1rem 1.35rem;
+    margin-bottom: 1.25rem;
+}
+
+.alarm-guide-card h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #38BDF8;
+    margin: 0 0 6px;
+}
+
+.alarm-guide-card p {
+    font-size: 0.84rem;
+    color: #8C93A4;
+    margin: 0 0 4px;
+    line-height: 1.45;
+}
+</style>

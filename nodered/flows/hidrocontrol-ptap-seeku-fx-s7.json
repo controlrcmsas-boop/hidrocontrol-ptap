@@ -1,0 +1,166 @@
+[
+    {
+        "id": "tab_seeku_fx_s7",
+        "type": "tab",
+        "label": "SEEKU FX -> SIEMENS S7-1200",
+        "disabled": false,
+        "info": "Enlace directo de la Pantalla Táctil SEEKU (COM4, 38400 baud, Mitsubishi FX) hacia el Siemens S7-1200 DB11."
+    },
+    {
+        "id": "serial_config_seeku",
+        "type": "serial-port",
+        "serialport": "COM4",
+        "serialbaud": "38400",
+        "databits": "8",
+        "parity": "none",
+        "stopbits": "1",
+        "waitfor": "",
+        "dtr": "none",
+        "rts": "none",
+        "cts": "none",
+        "dsr": "none",
+        "newline": "100",
+        "bin": "bin",
+        "out": "time",
+        "addchar": "",
+        "responsetimeout": "500"
+    },
+    {
+        "id": "inject_poll_seeku",
+        "type": "inject",
+        "z": "tab_seeku_fx_s7",
+        "name": "Consultar M0-M7 cada 250ms",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "0.25",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 180,
+        "y": 100,
+        "wires": [
+            [
+                "fn_build_fx_poll_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "fn_build_fx_poll_cmd",
+        "type": "function",
+        "z": "tab_seeku_fx_s7",
+        "name": "Trama Consulta FX (M0..M7)",
+        "func": "// Comando de lectura Mitsubishi FX para M0..M7\n// Formato: <ENQ> (0x05) o lectura de bloque de bits\n// Para inicialización y sondeo continuo\nconst buf = Buffer.from([0x02, 0x30, 0x30, 0x38, 0x30, 0x30, 0x32, 0x03, 0x36, 0x41]);\nmsg.payload = buf;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "x": 450,
+        "y": 100,
+        "wires": [
+            [
+                "serial_out_seeku"
+            ]
+        ]
+    },
+    {
+        "id": "serial_out_seeku",
+        "type": "serial out",
+        "z": "tab_seeku_fx_s7",
+        "name": "Enviar a COM4 (38400)",
+        "serial": "serial_config_seeku",
+        "x": 730,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "serial_in_seeku",
+        "type": "serial in",
+        "z": "tab_seeku_fx_s7",
+        "name": "Recibir de COM4",
+        "serial": "serial_config_seeku",
+        "x": 150,
+        "y": 220,
+        "wires": [
+            [
+                "fn_decode_fx_response"
+            ]
+        ]
+    },
+    {
+        "id": "fn_decode_fx_response",
+        "type": "function",
+        "z": "tab_seeku_fx_s7",
+        "name": "Decodificar M0, M1, M2 y Flanco",
+        "func": "const raw = msg.payload;\nif (!raw || raw.length === 0) return null;\n\n// Buffer / Array de bytes recibidos\nlet bytes = Array.isArray(raw) ? raw : Buffer.from(raw);\n\n// Estado previo guardado en contexto de flujo\nlet prev = flow.get('seeku_button_state') || { m0: false, m1: false, m2: false };\n\n// Decodificación de estado de bits\nlet m0 = false; // Bomba Principal\nlet m1 = false; // Dosificador Sulfato\nlet m2 = false; // Dosificador Cloro\n\nif (bytes.length >= 1) {\n    const b = bytes[0];\n    m0 = (b & 0x01) !== 0;\n    m1 = (b & 0x02) !== 0;\n    m2 = (b & 0x04) !== 0;\n}\n\nflow.set('seeku_button_state', { m0, m1, m2 });\n\n// Detección de flancos ascendentes (Rising Edge)\nlet commandsToSend = [];\n\nif (m0 && !prev.m0) {\n    commandsToSend.push({ target: 'bomba_principal', command: 'start', source: 'SEEKU_HMI_M0' });\n}\nif (m1 && !prev.m1) {\n    commandsToSend.push({ target: 'dosificador_sulfato', command: 'start', source: 'SEEKU_HMI_M1' });\n}\nif (m2 && !prev.m2) {\n    commandsToSend.push({ target: 'dosificador_cloro', command: 'start', source: 'SEEKU_HMI_M2' });\n}\n\nif (commandsToSend.length > 0) {\n    node.warn(`[SEEKU BOTÓN PULSADO] Comandos: ${JSON.stringify(commandsToSend)}`);\n    return [commandsToSend.map(c => ({ payload: c }))];\n}\n\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "x": 420,
+        "y": 220,
+        "wires": [
+            [
+                "http_send_to_s7_command",
+                "debug_seeku_events"
+            ]
+        ]
+    },
+    {
+        "id": "http_send_to_s7_command",
+        "type": "http request",
+        "z": "tab_seeku_fx_s7",
+        "name": "POST a /api/control/command",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://127.0.0.1:1880/api/control/command",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 750,
+        "y": 220,
+        "wires": [
+            [
+                "debug_command_result"
+            ]
+        ]
+    },
+    {
+        "id": "debug_seeku_events",
+        "type": "debug",
+        "z": "tab_seeku_fx_s7",
+        "name": "Debug Evento Pantalla",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 730,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "debug_command_result",
+        "type": "debug",
+        "z": "tab_seeku_fx_s7",
+        "name": "Respuesta PLC S7",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 980,
+        "y": 220,
+        "wires": []
+    }
+]

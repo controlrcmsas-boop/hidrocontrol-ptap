@@ -1,0 +1,264 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using PTAPControl.Data
+@inject AuthenticationStateProvider AuthStateProvider
+
+<div class="top-user-nav-container">
+    <!-- Icono de Notificaciones minimalista (campana limpia sin colores, a la izquierda del avatar) -->
+    <a href="/alarmas" class="topbar-bell-btn" title="Notificaciones" aria-label="Notificaciones">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+    </a>
+
+    <!-- Menú desplegable del Usuario: avatar circular con silueta + chevron, sin email visible -->
+    <AuthorizeView>
+        <Authorized>
+            <div class="topbar-user-dropdown-wrap">
+                <button type="button" class="topbar-user-btn @(_isOpen ? "active" : "")" @onclick="ToggleDropdown" aria-expanded="@_isOpen" aria-label="Menú de usuario" title="@_userName">
+                    <div class="topbar-avatar">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                        </svg>
+                    </div>
+                    <svg class="topbar-chevron @(_isOpen ? "rotated" : "")" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+
+                @if (_isOpen)
+                {
+                    <div class="topbar-dropdown-menu" @onclick:stopPropagation="true">
+                        <div class="dropdown-user-header">
+                            <span class="dropdown-name" title="@_userName">@_userName</span>
+                            <span class="dropdown-role-badge">@_userRole</span>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="/logout" class="dropdown-item logout-item">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                            Cerrar sesión
+                        </a>
+                    </div>
+                }
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <a href="/login" class="topbar-login-btn">Iniciar sesión</a>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+
+@code {
+    private bool _isOpen;
+    private string? _userName;
+    private string? _userRole;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            _userName = user.FindFirst("FullName")?.Value
+                        ?? user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                        ?? user.Identity.Name;
+
+            if (user.IsInRole("Administrador")) _userRole = "Administrador";
+            else if (user.IsInRole("Gerente")) _userRole = "Gerente";
+            else if (user.IsInRole("Operador")) _userRole = "Operador";
+            else if (user.IsInRole("Simulador")) _userRole = "Simulador";
+            else _userRole = "Demo";
+        }
+    }
+
+    private void ToggleDropdown()
+    {
+        _isOpen = !_isOpen;
+    }
+}
+
+<style>
+.top-user-nav-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+    user-select: none;
+    margin-left: auto;
+}
+
+/* Campana de notificaciones: sobria, minimalista */
+.topbar-bell-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    color: #94A3B8;
+    background: transparent;
+    border: none;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.topbar-bell-btn:hover {
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Cápsula de usuario y chevron */
+.topbar-user-dropdown-wrap {
+    position: relative;
+}
+
+.topbar-user-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    border-radius: 9999px;
+    cursor: pointer;
+    color: #94A3B8;
+    transition: all 0.2s ease;
+}
+
+.topbar-user-btn:hover,
+.topbar-user-btn.active {
+    background: rgba(255, 255, 255, 0.06);
+    color: #FFFFFF;
+}
+
+.topbar-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.topbar-user-btn:hover .topbar-avatar,
+.topbar-user-btn.active .topbar-avatar {
+    background: rgba(255, 255, 255, 0.25);
+    color: #FFFFFF;
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.topbar-chevron {
+    color: #94A3B8;
+    transition: transform 0.2s ease;
+}
+
+.topbar-chevron.rotated {
+    transform: rotate(180deg);
+}
+
+/* Menú desplegable */
+.topbar-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 210px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+    border-radius: 10px;
+    padding: 0.6rem 0;
+    z-index: 1000;
+    animation: fadeInMenu 0.15s ease-out;
+}
+
+@@keyframes fadeInMenu {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-user-header {
+    padding: 0.5rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.dropdown-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #FFFFFF;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dropdown-role-badge {
+    font-size: 0.68rem;
+    color: #38BDF8;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 4px;
+    padding: 0.1rem 0.45rem;
+    width: fit-content;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 0.4rem 0;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.8rem;
+    color: #94A3B8;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+}
+
+.dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.dropdown-item.logout-item {
+    color: #F87171;
+}
+
+.dropdown-item.logout-item:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #FCA5A5;
+}
+
+.topbar-login-btn {
+    padding: 0.35rem 0.9rem;
+    background: #1E293B;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38BDF8;
+    border-radius: 9999px;
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.topbar-login-btn:hover {
+    background: rgba(56, 189, 248, 0.15);
+    color: #FFFFFF;
+}
+</style>

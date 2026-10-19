@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 chcp 65001 >nul
 title HIDROCONTROL PTAP V2.2 - Agente Supervisor Local
 color 0a
@@ -15,7 +15,7 @@ if %errorlevel% neq 0 (
     start /min "" ollama serve
     timeout /t 3 /nobreak >nul
 ) else (
-    echo [+] Servidor local Ollama ya está activo y respondiendo en http://localhost:11434.
+    echo [+] Servidor local Ollama ya est? activo y respondiendo en http://localhost:11434.
 )
 
 echo [*] Iniciando Dashboard HIDROCONTROL PTAP...

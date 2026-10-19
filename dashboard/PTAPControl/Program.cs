@@ -254,7 +254,7 @@ app.MapPost("/auth/login", async (
 
         if (isAdmin && (returnUrl == "/" || returnUrl == "/login"))
         {
-            return Results.Redirect("/admin/users");
+            return Results.Redirect("/configuracion");
         }
 
         return Results.Redirect(returnUrl);

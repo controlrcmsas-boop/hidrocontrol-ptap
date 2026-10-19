@@ -11,9 +11,17 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
         ? "Node-RED Local"
         : (http.BaseAddress?.ToString().TrimEnd('/') ?? "Node-RED");
 
+    private static DateTimeOffset _lastPlcAttempt = DateTimeOffset.MinValue;
+    private static bool _lastPlcSuccess = false;
+    private static TelemetryResponse? _lastPlcTelemetry = null;
+    private static readonly TimeSpan PlcRetryInterval = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan FastHttpTimeout = TimeSpan.FromMilliseconds(600);
+
+    public bool IsPlcOnline => _lastPlcSuccess;
+
     public async Task<TelemetryResponse?> GetCurrentTelemetryAsync(CancellationToken cancellationToken = default)
     {
-        // Si estamos en modo de simulación (automático o manual), respondemos desde el motor nativo en memoria
+        // Si estamos en modo de simulación, respondemos desde el motor nativo en memoria de forma instantánea
         if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
         {
             var simStep = simulationEngine.GenerateTelemetryStep();
@@ -21,30 +29,48 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
             return simStep;
         }
 
+        // Modo PLC Activo: Si el último intento falló recientemente, devolvemos el estado sin bloquear el circuito Blazor
+        var now = DateTimeOffset.UtcNow;
+        if (!_lastPlcSuccess && (now - _lastPlcAttempt) < PlcRetryInterval)
+        {
+            return _lastPlcTelemetry ?? new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
+        }
+
+        _lastPlcAttempt = now;
+
         try
         {
-            var response = await http.GetAsync("api/telemetry/current", cancellationToken);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(FastHttpTimeout);
+
+            var response = await http.GetAsync("api/telemetry/current", cts.Token);
             if (response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
             {
-                return new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
+                _lastPlcSuccess = false;
+                _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
+                return _lastPlcTelemetry;
             }
 
             response.EnsureSuccessStatusCode();
-            var telemetry = await response.Content.ReadFromJsonAsync<TelemetryResponse>(cancellationToken);
+            var telemetry = await response.Content.ReadFromJsonAsync<TelemetryResponse>(cts.Token);
             if (telemetry is not null)
             {
+                _lastPlcSuccess = telemetry.PlcConnected;
+                _lastPlcTelemetry = telemetry;
                 simulationEngine.RecordTelemetrySample(telemetry);
+                return telemetry;
             }
-            return telemetry;
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
-        {
-            return new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
+
+            _lastPlcSuccess = false;
+            _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
+            return _lastPlcTelemetry;
         }
         catch
         {
-            // Si el PLC/Node-RED físico no responde, reportamos desconexión limpia
-            return new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
+            // El PLC/Node-RED está apagado en oficina; mantenemos intentos periódicos sin ralentizar la app
+            _lastPlcSuccess = false;
+            _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
+            return _lastPlcTelemetry;
         }
     }
 
@@ -102,7 +128,7 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
 
     public async Task<List<QualityHistoryPoint>> GetQualityHistoryAsync(string tag, int limit = 100, CancellationToken cancellationToken = default)
     {
-        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc || !_lastPlcSuccess)
         {
             return simulationEngine.GetQualityHistory(tag, limit);
         }
@@ -110,7 +136,9 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
         var url = $"api/telemetry/quality-history?tag={Uri.EscapeDataString(tag)}&limit={limit}";
         try
         {
-            return await http.GetFromJsonAsync<List<QualityHistoryPoint>>(url, cancellationToken) ?? [];
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromMilliseconds(400));
+            return await http.GetFromJsonAsync<List<QualityHistoryPoint>>(url, cts.Token) ?? [];
         }
         catch
         {

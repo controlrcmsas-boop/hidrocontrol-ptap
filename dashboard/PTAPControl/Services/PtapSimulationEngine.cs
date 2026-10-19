@@ -34,8 +34,8 @@ public sealed class PtapSimulationEngine
     public double PresionB1Base { get; set; } = 2.45;
     public double CaudalB1Base { get; set; } = 15.0;
 
-    // Modo de operación y escenario (por defecto PLC físico real para operación en planta)
-    public PtapDataSourceMode CurrentMode { get; set; } = PtapDataSourceMode.PhysicalPlc;
+    // Modo de operación y escenario (por defecto Simulador para que la interfaz responda instantáneamente)
+    public PtapDataSourceMode CurrentMode { get; set; } = PtapDataSourceMode.SimulatedAuto;
     public string ActiveScenario { get; private set; } = "normal";
     public bool SimulatePlcDisconnected { get; set; } = false;
 
@@ -545,102 +545,44 @@ public sealed class PtapSimulationEngine
         new AlarmLimit
         {
             Id = 1,
-            TagId = "ph_agua_cruda",
-            NombreVisible = "pH Agua Cruda",
+            TagId = "ph",
+            NombreVisible = "pH",
             AlarmType = "range",
             Enabled = true,
             Severity = "high",
             LimitLow = 6.5m,
             LimitHigh = 8.5m,
             Unit = "pH",
-            Message = "pH de agua cruda fuera de límite normativo (6.5 - 8.5)",
+            Message = "pH fuera de rango normativo (6.5 — 8.5)",
             TechnicalNote = "Límites estándar según Resolución 2115 / 2007",
             UpdatedAt = DateTimeOffset.UtcNow
         },
         new AlarmLimit
         {
             Id = 2,
-            TagId = "ph_agua_tratada",
-            NombreVisible = "pH Agua Tratada",
-            AlarmType = "range",
-            Enabled = true,
-            Severity = "high",
-            LimitLow = 6.5m,
-            LimitHigh = 8.5m,
-            Unit = "pH",
-            Message = "pH de agua tratada fuera de rango óptimo",
-            TechnicalNote = "Rango de potabilización para distribución",
-            UpdatedAt = DateTimeOffset.UtcNow
-        },
-        new AlarmLimit
-        {
-            Id = 3,
-            TagId = "turbidez_agua_cruda",
-            NombreVisible = "Turbidez Agua Cruda",
-            AlarmType = "high",
-            Enabled = true,
-            Severity = "medium",
-            LimitHigh = 20.0m,
-            Unit = "NTU",
-            Message = "Turbidez de agua cruda elevada en captación",
-            TechnicalNote = "Alerta para ajuste preventivo de coagulante",
-            UpdatedAt = DateTimeOffset.UtcNow
-        },
-        new AlarmLimit
-        {
-            Id = 4,
-            TagId = "turbidez_agua_tratada",
-            NombreVisible = "Turbidez Agua Tratada",
+            TagId = "turbidez",
+            NombreVisible = "Turbidez",
             AlarmType = "high",
             Enabled = true,
             Severity = "high",
             LimitHigh = 2.0m,
             Unit = "NTU",
-            Message = "Turbidez de agua tratada excede el límite máximo admisible",
+            Message = "Turbidez excede el límite máximo admisible (2.0 NTU)",
             TechnicalNote = "Norma sanitaria máxima 2.0 NTU (óptimo < 0.5 NTU)",
             UpdatedAt = DateTimeOffset.UtcNow
         },
         new AlarmLimit
         {
-            Id = 5,
-            TagId = "cloro_residual",
-            NombreVisible = "Cloro Residual",
-            AlarmType = "range",
-            Enabled = true,
-            Severity = "high",
-            LimitLow = 0.3m,
-            LimitHigh = 2.0m,
-            Unit = "mg/L",
-            Message = "Cloro residual fuera de rango seguro de desinfección",
-            TechnicalNote = "Rango normativo red distribución 0.3 a 2.0 mg/L",
-            UpdatedAt = DateTimeOffset.UtcNow
-        },
-        new AlarmLimit
-        {
-            Id = 6,
-            TagId = "bomba_principal_estado",
-            NombreVisible = "Bomba Principal B1",
-            AlarmType = "bool_equals",
+            Id = 3,
+            TagId = "conductividad",
+            NombreVisible = "Conductividad",
+            AlarmType = "high",
             Enabled = true,
             Severity = "medium",
-            BoolAlarmValue = false,
-            Unit = null,
-            Message = "Bomba principal de captación detenida / fuera de servicio",
-            TechnicalNote = "Disparo por fallo de marcha o paro no programado",
-            UpdatedAt = DateTimeOffset.UtcNow
-        },
-        new AlarmLimit
-        {
-            Id = 7,
-            TagId = "nivel_tanque_agua_cruda",
-            NombreVisible = "Nivel Tanque Agua Cruda",
-            AlarmType = "bool_equals",
-            Enabled = true,
-            Severity = "medium",
-            BoolAlarmValue = true,
-            Unit = null,
-            Message = "Tanque de agua cruda en nivel alto / alerta de rebose",
-            TechnicalNote = "Disparado por flotador o sensor de nivel S1",
+            LimitHigh = 1000.0m,
+            Unit = "µS/cm",
+            Message = "Conductividad excede el límite admisible (1.000 µS/cm)",
+            TechnicalNote = "Límite máximo recomendado según norma técnica",
             UpdatedAt = DateTimeOffset.UtcNow
         }
     };

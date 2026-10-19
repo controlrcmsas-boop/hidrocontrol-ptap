@@ -4,7 +4,7 @@ title Limpiar Arranques Anteriores - HIDROCONTROL PTAP
 color 0e
 
 echo ==============================================================================
-echo       LIMPIEZA DE ARRANQUES AUTOMÁTICOS ANTERIORES EN WINDOWS
+echo       LIMPIEZA DE ARRANQUES AUTOM?TICOS ANTERIORES EN WINDOWS
 echo ==============================================================================
 echo.
 
@@ -20,12 +20,12 @@ echo.
 
 :: 2. Abrir la carpeta de Inicio de Windows (shell:startup)
 echo [*] 2/3 Abriendo la carpeta de Inicio del usuario...
-echo     Si ves algún acceso directo viejo (ej: Iniciar-TODO, Iniciar-Dashboard, etc.),
-echo     simplemente selecciónalo y bórralo (Supr).
+echo     Si ves alg?n acceso directo viejo (ej: Iniciar-TODO, Iniciar-Dashboard, etc.),
+echo     simplemente selecci?nalo y b?rralo (Supr).
 start "" explorer.exe shell:startup
 echo.
 
-:: 3. Abrir la configuración de Aplicaciones de Inicio de Windows
+:: 3. Abrir la configuraci?n de Aplicaciones de Inicio de Windows
 echo [*] 3/3 Abriendo la pantalla de Aplicaciones de Inicio de Windows...
 start "" ms-settings:startupapps
 echo.

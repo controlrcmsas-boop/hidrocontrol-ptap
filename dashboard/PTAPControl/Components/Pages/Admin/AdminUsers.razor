@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Identity
 @using PTAPControl.Data
 @using PTAPControl.Services
+@using PTAPControl.Components.Layout
 @attribute [Authorize(Roles = "Administrador")]
 @inject UserManager<ApplicationUser> UserManager
 @inject ILogger<AdminUsers> Logger
@@ -11,12 +12,15 @@
 
 <div class="admin-users-page">
     <div class="admin-header">
-        <h2>👥 Gestión de Usuarios</h2>
-        <div class="admin-stats">
-            <span class="stat-badge stat-pending">⏳ @_users.Count(u => u.ApprovalStatus == ApprovalStatus.Pending) Pendientes</span>
-            <span class="stat-badge stat-approved">✅ @_users.Count(u => u.ApprovalStatus == ApprovalStatus.Approved) Aprobados</span>
-            <span class="stat-badge stat-rejected">❌ @_users.Count(u => u.ApprovalStatus == ApprovalStatus.Rejected) Rechazados</span>
+        <div class="admin-title-wrap">
+            <h2>Gestión de Usuarios</h2>
+            <div class="admin-stats">
+                <span class="stat-badge stat-pending">@_users.Count(u => u.ApprovalStatus == ApprovalStatus.Pending) Pendientes</span>
+                <span class="stat-badge stat-approved">@_users.Count(u => u.ApprovalStatus == ApprovalStatus.Approved) Aprobados</span>
+                <span class="stat-badge stat-rejected">@_users.Count(u => u.ApprovalStatus == ApprovalStatus.Rejected) Rechazados</span>
+            </div>
         </div>
+        <TopUserNav />
     </div>
 
     @if (!string.IsNullOrEmpty(_message))
@@ -82,13 +86,27 @@
                             <div class="action-btns">
                                 @if (user.ApprovalStatus != ApprovalStatus.Approved)
                                 {
-                                    <button class="btn-action btn-approve" @onclick="() => ApproveUser(user.Id)" title="Aprobar">✅</button>
+                                    <button class="btn-action btn-approve" @onclick="() => ApproveUser(user.Id)" title="Aprobar usuario">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                    </button>
                                 }
                                 @if (user.ApprovalStatus != ApprovalStatus.Rejected)
                                 {
-                                    <button class="btn-action btn-reject" @onclick="() => RejectUser(user.Id)" title="Rechazar">❌</button>
+                                    <button class="btn-action btn-reject" @onclick="() => RejectUser(user.Id)" title="Rechazar usuario">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
                                 }
-                                <button class="btn-action btn-delete" @onclick="() => DeleteUser(user.Id)" title="Eliminar">🗑️</button>
+                                <button class="btn-action btn-delete" @onclick="() => DeleteUser(user.Id)" title="Eliminar usuario">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    </svg>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -208,9 +226,9 @@
 
     private static string GetStatusLabel(ApprovalStatus s) => s switch
     {
-        ApprovalStatus.Pending  => "⏳ Pendiente",
-        ApprovalStatus.Approved => "✅ Aprobado",
-        ApprovalStatus.Rejected => "❌ Rechazado",
-        _                       => "?"
+        ApprovalStatus.Pending  => "Pendiente",
+        ApprovalStatus.Approved => "Aprobado",
+        ApprovalStatus.Rejected => "Rechazado",
+        _                       => "—"
     };
 }

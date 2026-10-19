@@ -7,94 +7,104 @@
 @inject NavigationManager Navigation
 @implements IDisposable
 
-<PageTitle>Simulador PTAP - HIDROCONTROL</PageTitle>
+<PageTitle>Simulador PTAP — HIDROCONTROL</PageTitle>
 
 <div class="simulator-page">
     <div class="simulator-header">
         <div>
-            <div class="badge-offline">🎮 MOTOR DE SIMULACIÓN INTERACTIVO</div>
-            <h1 class="page-title">Control y Emulador de Planta PTAP</h1>
+            <h1 class="page-title">Emulador de Planta PTAP</h1>
             <p class="page-subtitle">
-                Modifica en tiempo real los sensores y actuadores como si estuvieras manipulando el agua y el tablero eléctrico de la planta.
+                Ajuste de variables de proceso y control de actuadores para pruebas y calibración.
             </p>
+        </div>
+        <div class="sim-header-actions">
+            <div class="mode-selector-strip">
+                <label class="mode-label">Modo Operativo:</label>
+                <div class="mode-buttons-group">
+                    <button type="button" class="btn-mode @(Api.Simulation.CurrentMode != PtapDataSourceMode.PhysicalPlc ? "active auto" : "")" 
+                            @onclick="() => SwitchMode(PtapDataSourceMode.SimulatedAuto)" title="Modo de simulación de planta">
+                        Simulador
+                    </button>
+                    <button type="button" class="btn-mode @(Api.Simulation.CurrentMode == PtapDataSourceMode.PhysicalPlc ? "active plc" : "")" 
+                            @onclick="() => SwitchMode(PtapDataSourceMode.PhysicalPlc)" title="Conexión física con autómata PLC Siemens S7-1200">
+                        PLC
+                    </button>
+                </div>
+            </div>
+            <TopUserNav />
         </div>
     </div>
 
-    @if (!string.IsNullOrEmpty(FeedbackMessage))
-    {
-        <div class="feedback-banner">
-            <span>@FeedbackMessage</span>
-        </div>
-    }
-
-    <!-- ESCENARIOS RÁPIDOS -->
+    <!-- ESCENARIOS RÁPIDOS: Botones cápsula limpios sin emojis -->
     <div class="preset-section">
-        <span class="preset-title">⚡ Escenarios de Prueba Rápidos:</span>
+        <span class="preset-title">Escenarios de Prueba Rápidos:</span>
         <div class="preset-buttons">
-            <button type="button" class="preset-btn @(CurrentScenario == "normal" ? "active" : "")" @onclick="@(() => ApplyPreset("normal"))">
-                ☀️ Operación Normal
+            <button type="button" class="preset-btn @(CurrentScenario == "normal" ? "active" : "")" 
+                    @onclick="@(() => ApplyPreset("normal"))">
+                Operación Normal
             </button>
-            <button type="button" class="preset-btn rain @(CurrentScenario == "rain" ? "active" : "")" @onclick="@(() => ApplyPreset("rain"))">
-                🌧️ Creciente / Tormenta (Turbidez 85 NTU)
+            <button type="button" class="preset-btn @(CurrentScenario == "rain" ? "active" : "")" 
+                    @onclick="@(() => ApplyPreset("rain"))">
+                Alta Turbidez (85 NTU)
             </button>
-            <button type="button" class="preset-btn warning @(CurrentScenario == "pump_fault" ? "active" : "")" @onclick="@(() => ApplyPreset("pump_fault"))">
-                ⚠️ Falla Bomba Principal (Presión 0)
+            <button type="button" class="preset-btn @(CurrentScenario == "pump_fault" ? "active" : "")" 
+                    @onclick="@(() => ApplyPreset("pump_fault"))">
+                Falla Bomba Principal
             </button>
-            <button type="button" class="preset-btn danger @(CurrentScenario == "chlorine_fault" ? "active" : "")" @onclick="@(() => ApplyPreset("chlorine_fault"))">
-                🧪 Falla Dosificador Cloro
+            <button type="button" class="preset-btn @(CurrentScenario == "chlorine_fault" ? "active" : "")" 
+                    @onclick="@(() => ApplyPreset("chlorine_fault"))">
+                Falla Dosificador Cloro
             </button>
             <button type="button" class="preset-btn stop" @onclick="StopAll">
-                🛑 Parada de Emergencia
+                Parada de Emergencia
             </button>
         </div>
     </div>
 
     <div class="simulator-grid">
-        <!-- COLUMNA 1: SENSORES ANALÓGICOS DE AGUA CRUDA -->
+        <!-- COLUMNA 1: VARIABLES DE PROCESO (Únicamente pH, Turbidez y Conductividad) -->
         <div class="sim-card">
             <div class="card-header">
-                <h3>🌊 Variables Físicas y Químicas (Agua Cruda)</h3>
-                <span class="card-tag">Entrada a la Planta</span>
+                <h3>Variables de Proceso</h3>
             </div>
 
+            <!-- pH -->
             <div class="control-group">
                 <div class="control-label-row">
-                    <label>pH Agua Cruda</label>
-                    <span class="val-pill @(SimState.PhCrudaBase < 6.5 || SimState.PhCrudaBase > 8.5 ? "val-alert" : "val-ok")">
-                        @SimState.PhCrudaBase.ToString("F2") pH
-                    </span>
+                    <label>pH</label>
+                    <span class="val-text">@SimState.PhCrudaBase.ToString("F2") pH</span>
                 </div>
                 <input type="range" class="sim-slider" min="4.0" max="10.0" step="0.05"
                        value="@SimState.PhCrudaBase"
                        @oninput="(e) => OnPhChange(e)" />
                 <div class="range-limits">
-                    <span>Ácido (4.0)</span>
-                    <span class="optimum">Óptimo (6.5 - 8.5)</span>
-                    <span>Alcalino (10.0)</span>
+                    <span>4.0</span>
+                    <span class="optimum">Óptimo (6.5 — 8.5)</span>
+                    <span>10.0</span>
                 </div>
             </div>
 
+            <!-- Turbidez -->
             <div class="control-group">
                 <div class="control-label-row">
-                    <label>Turbidez Agua Cruda</label>
-                    <span class="val-pill @(SimState.TurbidezCrudaBase > 50 ? "val-danger" : SimState.TurbidezCrudaBase > 20 ? "val-alert" : "val-ok")">
-                        @SimState.TurbidezCrudaBase.ToString("F1") NTU
-                    </span>
+                    <label>Turbidez</label>
+                    <span class="val-text">@SimState.TurbidezCrudaBase.ToString("F1") NTU</span>
                 </div>
-                <input type="range" class="sim-slider" min="1.0" max="120.0" step="1.0"
+                <input type="range" class="sim-slider" min="1.0" max="120.0" step="0.5"
                        value="@SimState.TurbidezCrudaBase"
                        @oninput="(e) => OnTurbidezChange(e)" />
                 <div class="range-limits">
-                    <span>Clara (1.0 NTU)</span>
-                    <span class="optimum">Río Normal (15 - 25)</span>
-                    <span>Muy Turbia (120 NTU)</span>
+                    <span>1.0 NTU</span>
+                    <span class="optimum">Normal (15 — 25)</span>
+                    <span>120 NTU</span>
                 </div>
             </div>
 
+            <!-- Conductividad -->
             <div class="control-group">
                 <div class="control-label-row">
-                    <label>Conductividad Agua Cruda</label>
-                    <span class="val-pill">@SimState.ConductividadCrudaBase.ToString("F0") µS/cm</span>
+                    <label>Conductividad</label>
+                    <span class="val-text">@SimState.ConductividadCrudaBase.ToString("F0") µS/cm</span>
                 </div>
                 <input type="range" class="sim-slider" min="100" max="1000" step="10"
                        value="@SimState.ConductividadCrudaBase"
@@ -105,52 +115,19 @@
                     <span>1.000 µS/cm</span>
                 </div>
             </div>
-
-            <div class="control-group">
-                <div class="control-label-row">
-                    <label>Presión Bomba Principal (bar)</label>
-                    <span class="val-pill @(SimState.PresionB1Base < 1.0 ? "val-danger" : "val-ok")">
-                        @SimState.PresionB1Base.ToString("F2") bar
-                    </span>
-                </div>
-                <input type="range" class="sim-slider" min="0.0" max="5.0" step="0.1"
-                       value="@SimState.PresionB1Base"
-                       @oninput="(e) => OnPresionChange(e)" />
-                <div class="range-limits">
-                    <span>0.0 bar</span>
-                    <span class="optimum">Presión Nominal (2.5 bar)</span>
-                    <span>5.0 bar</span>
-                </div>
-            </div>
-
-            <div class="control-group">
-                <div class="control-label-row">
-                    <label>Caudal Bomba Principal (L/min)</label>
-                    <span class="val-pill">@SimState.CaudalB1Base.ToString("F1") L/min</span>
-                </div>
-                <input type="range" class="sim-slider" min="0.0" max="30.0" step="0.5"
-                       value="@SimState.CaudalB1Base"
-                       @oninput="(e) => OnCaudalChange(e)" />
-                <div class="range-limits">
-                    <span>0 L/min</span>
-                    <span>15 L/min</span>
-                    <span>30 L/min</span>
-                </div>
-            </div>
         </div>
 
-        <!-- COLUMNA 2: ACTUADORES Y ESTADOS DIGITALES DEL PLC -->
+        <!-- COLUMNA 2: ACTUADORES DEL TABLERO (Solo equipos físicos existentes) -->
         <div class="sim-card">
             <div class="card-header">
-                <h3>⚙️ Actuadores y Tablero de Control PLC</h3>
-                <span class="card-tag">Señales DB10 / DB11</span>
+                <h3>Actuadores del Tablero</h3>
             </div>
 
             <div class="switches-list">
+                <!-- Bomba Principal (B1) -->
                 <div class="switch-row">
                     <div class="switch-info">
                         <strong>Bomba Principal (B1)</strong>
-                        <span>Alimentación hidráulica al floculador</span>
                     </div>
                     <label class="toggle-switch">
                         <input type="checkbox" checked="@SimState.BombaPrincipalEstado" @onchange="ToggleBomba" />
@@ -158,10 +135,10 @@
                     </label>
                 </div>
 
+                <!-- Dosificador Sulfato (B2) -->
                 <div class="switch-row">
                     <div class="switch-info">
                         <strong>Dosificador de Sulfato (B2)</strong>
-                        <span>Coagulación y abatimiento de turbidez</span>
                     </div>
                     <label class="toggle-switch">
                         <input type="checkbox" checked="@SimState.DosificadorSulfatoEstado" @onchange="ToggleSulfato" />
@@ -169,10 +146,10 @@
                     </label>
                 </div>
 
+                <!-- Dosificador Cloro (B3) -->
                 <div class="switch-row">
                     <div class="switch-info">
                         <strong>Dosificador de Cloro (B3)</strong>
-                        <span>Desinfección y residual bactericida</span>
                     </div>
                     <label class="toggle-switch">
                         <input type="checkbox" checked="@SimState.DosificadorCloroEstado" @onchange="ToggleCloro" />
@@ -180,67 +157,16 @@
                     </label>
                 </div>
 
-                <div class="switch-row">
-                    <div class="switch-info">
-                        <strong>Nivel Tanque Agua Cruda</strong>
-                        <span>@(SimState.NivelTanqueAguaCruda ? "Nivel Normal / Suficiente" : "Alerta: Nivel Crítico Bajo")</span>
-                    </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" checked="@SimState.NivelTanqueAguaCruda" @onchange="ToggleNivel" />
-                        <span class="slider round"></span>
-                    </label>
-                </div>
-
-                <div class="switch-row">
-                    <div class="switch-info">
-                        <strong>Modo Remoto Habilitado</strong>
-                        <span>Permite recibir comandos desde el SCADA web</span>
-                    </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" checked="@SimState.ModoRemotoHabilitado" @onchange="ToggleModoRemoto" />
-                        <span class="slider round"></span>
-                    </label>
-                </div>
-
+                <!-- Forzar Falla PLC -->
                 <div class="switch-row danger-switch">
                     <div class="switch-info">
                         <strong>Forzar Falla en PLC S7-1200</strong>
-                        <span>Simula disparo de alarma general de hardware</span>
                     </div>
                     <label class="toggle-switch">
                         <input type="checkbox" checked="@SimState.PlcEnFalla" @onchange="TogglePlcFalla" />
                         <span class="slider round danger"></span>
                     </label>
                 </div>
-            </div>
-
-            <!-- RESULTADO DINÁMICO EN AGUA TRATADA -->
-            <div class="output-preview">
-                <h4>🧪 Respuesta Calculada de Agua Tratada:</h4>
-                <div class="preview-metrics">
-                    <div class="metric-item">
-                        <span>pH Tratada:</span>
-                        <strong>@GetEstimatedPhTratada().ToString("F2")</strong>
-                    </div>
-                    <div class="metric-item">
-                        <span>Turbidez Tratada:</span>
-                        <strong class="@(GetEstimatedTurbTratada() > 2.0 ? "text-danger" : "text-success")">
-                            @GetEstimatedTurbTratada().ToString("F2") NTU
-                        </strong>
-                    </div>
-                    <div class="metric-item">
-                        <span>Caudal Salida:</span>
-                        <strong>@(SimState.BombaPrincipalEstado ? (SimState.CaudalB1Base * 0.97).ToString("F1") : "0.0") L/min</strong>
-                    </div>
-                </div>
-                <p class="preview-hint">
-                    @(SimState.DosificadorSulfatoEstado && SimState.BombaPrincipalEstado
-                        ? "✓ Coagulación activa: Turbidez abatida a < 1.0 NTU (Apta para consumo)."
-                        : "⚠️ Coagulación inactiva: Turbidez no tratada sobrepasando norma.")
-                </p>
-                <a href="historicos" class="sim-charts-link">
-                    📈 Ver Curvas Históricas y Tendencias del Proceso &rarr;
-                </a>
             </div>
         </div>
     </div>
@@ -250,76 +176,110 @@
     .simulator-page {
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        gap: 1.5rem;
+        padding: 16px 22px 3rem;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .simulator-header {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
+        align-items: center;
         flex-wrap: wrap;
         gap: 15px;
+        width: 100%;
     }
 
-    .badge-offline {
-        display: inline-block;
-        font-size: 0.75rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        color: var(--cyan);
-        background: rgba(33, 209, 219, 0.12);
-        padding: 4px 10px;
-        border-radius: 999px;
-        margin-bottom: 8px;
-        border: 1px solid rgba(33, 209, 219, 0.3);
+    .sim-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
     }
 
-    .btn-goto-scada {
+    /* Selector de modo operativo en Simulador */
+    .mode-selector-strip {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        background: linear-gradient(135deg, #146175 0%, #0d3b47 100%);
-        color: #fff;
-        text-decoration: none;
-        padding: 10px 18px;
-        border-radius: 8px;
+        gap: 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        padding: 4px 12px;
+        border-radius: 9999px;
+    }
+
+    .mode-label {
+        font-size: 0.78rem;
         font-weight: 600;
-        font-size: 0.9rem;
-        border: 1px solid var(--cyan);
-        box-shadow: 0 4px 14px rgba(33, 209, 219, 0.2);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #94A3B8;
+    }
+
+    .mode-buttons-group {
+        display: flex;
+        gap: 6px;
+    }
+
+    .btn-mode {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        color: #94A3B8;
+        padding: 0.35rem 1rem;
+        border-radius: 9999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
         transition: all 0.2s ease;
     }
-    .btn-goto-scada:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(33, 209, 219, 0.35);
-        color: #fff;
+
+    .btn-mode:hover {
+        background: #353842;
+        color: #FFFFFF;
     }
 
-    .feedback-banner {
-        background: rgba(33, 209, 219, 0.15);
-        border-left: 4px solid var(--cyan);
-        padding: 10px 16px;
-        border-radius: 6px;
-        font-size: 0.9rem;
-        color: #e0f7fa;
+    .btn-mode.active.auto,
+    .btn-mode.active.plc {
+        background: #38BDF8;
+        border-color: #38BDF8;
+        color: #0F172A;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);
     }
 
+    .page-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #FFFFFF;
+        margin: 0;
+        letter-spacing: -0.02em;
+    }
+
+    .page-subtitle {
+        font-size: 0.85rem;
+        color: #8C93A4;
+        margin: 0.35rem 0 0;
+    }
+
+    /* Sección de escenarios rápidos */
     .preset-section {
-        background: rgba(14, 26, 32, 0.85);
-        border: 1px solid var(--border-color);
-        padding: 14px 18px;
-        border-radius: 12px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        padding: 1rem 1.25rem;
+        border-radius: 14px;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 0.75rem;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .preset-title {
-        font-size: 0.85rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: #8C93A4;
     }
 
     .preset-buttons {
@@ -328,157 +288,144 @@
         gap: 8px;
     }
 
+    /* Botones píldora estilo Imagen 2 */
     .preset-btn {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid var(--border-color);
-        color: var(--text-color);
-        padding: 8px 14px;
-        border-radius: 8px;
-        font-size: 0.85rem;
-        font-weight: 600;
+        background: #2A2C32;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #9EABB8;
+        padding: 0.45rem 1.2rem;
+        border-radius: 9999px;
+        font-size: 0.82rem;
+        font-weight: 500;
         cursor: pointer;
-        transition: all 0.2s;
-    }
-    .preset-btn:hover {
-        background: rgba(255, 255, 255, 0.12);
-        border-color: var(--cyan);
-    }
-    .preset-btn.active {
-        background: rgba(33, 209, 219, 0.2);
-        border-color: var(--cyan);
-        color: #fff;
-    }
-    .preset-btn.rain:hover, .preset-btn.rain.active {
-        border-color: #38bdf8;
-        background: rgba(56, 189, 248, 0.2);
-    }
-    .preset-btn.warning:hover, .preset-btn.warning.active {
-        border-color: #f59e0b;
-        background: rgba(245, 158, 11, 0.2);
-    }
-    .preset-btn.danger:hover, .preset-btn.danger.active {
-        border-color: #ef4444;
-        background: rgba(239, 68, 68, 0.2);
-    }
-    .preset-btn.stop {
-        border-color: #dc2626;
-        background: rgba(220, 38, 38, 0.15);
-        color: #fca5a5;
-    }
-    .preset-btn.stop:hover {
-        background: #dc2626;
-        color: #fff;
+        transition: all 0.2s ease;
     }
 
+    .preset-btn:hover {
+        background: #353842;
+        color: #FFFFFF;
+    }
+
+    .preset-btn.active {
+        background: #38BDF8;
+        border-color: #38BDF8;
+        color: #0F172A;
+        font-weight: 600;
+    }
+
+    .preset-btn.stop {
+        border-color: rgba(239, 68, 68, 0.3);
+        color: #F87171;
+    }
+
+    .preset-btn.stop:hover {
+        background: #EF4444;
+        color: #FFFFFF;
+        border-color: #EF4444;
+    }
+
+    /* Grid de simulación: 2 tarjetas de sección equilibradas en escritorio */
     .simulator-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-        gap: 20px;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    @@media (min-width: 960px) {
+        .simulator-grid {
+            grid-template-columns: 1fr 1fr;
+        }
     }
 
     .sim-card {
-        background: var(--panel-bg);
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        padding: 20px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 1.5rem;
         display: flex;
         flex-direction: column;
-        gap: 18px;
+        gap: 1.25rem;
+        box-sizing: border-box;
     }
 
     .card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        padding-bottom: 0.85rem;
     }
+
     .card-header h3 {
         margin: 0;
-        font-size: 1.05rem;
-        color: #fff;
-        font-weight: 700;
-    }
-    .card-tag {
-        font-size: 0.72rem;
-        background: rgba(255, 255, 255, 0.08);
-        color: var(--muted);
-        padding: 3px 8px;
-        border-radius: 6px;
+        font-size: 1.1rem;
+        color: #FFFFFF;
+        font-weight: 600;
     }
 
     .control-group {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
     }
 
     .control-label-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 0.9rem;
+        font-size: 0.92rem;
         font-weight: 600;
-        color: #e2e8f0;
+        color: #E2E8F0;
     }
 
-    .val-pill {
-        background: rgba(255, 255, 255, 0.08);
-        padding: 2px 8px;
-        border-radius: 6px;
-        font-family: monospace;
-        font-size: 0.85rem;
+    .val-text {
+        color: #38BDF8;
         font-weight: 700;
-    }
-    .val-pill.val-ok {
-        background: rgba(34, 197, 94, 0.2);
-        color: #4ade80;
-    }
-    .val-pill.val-alert {
-        background: rgba(245, 158, 11, 0.2);
-        color: #fbbf24;
-    }
-    .val-pill.val-danger {
-        background: rgba(239, 68, 68, 0.25);
-        color: #f87171;
+        font-size: 0.95rem;
     }
 
     .sim-slider {
         -webkit-appearance: none;
         width: 100%;
-        height: 8px;
-        border-radius: 5px;
-        background: rgba(255, 255, 255, 0.12);
+        height: 6px;
+        border-radius: 9999px;
+        background: #2A2C32;
         outline: none;
-        cursor: pointer;
-        transition: background 0.2s;
+        transition: opacity 0.2s;
     }
+
     .sim-slider::-webkit-slider-thumb {
         -webkit-appearance: none;
         appearance: none;
         width: 20px;
         height: 20px;
         border-radius: 50%;
-        background: var(--cyan);
+        background: #38BDF8;
         cursor: pointer;
-        box-shadow: 0 0 10px rgba(33, 209, 219, 0.6);
-        transition: transform 0.1s;
+        border: 2px solid #FFFFFF;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
     }
-    .sim-slider::-webkit-slider-thumb:hover {
-        transform: scale(1.2);
+
+    .sim-slider::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #38BDF8;
+        cursor: pointer;
+        border: 2px solid #FFFFFF;
     }
 
     .range-limits {
         display: flex;
         justify-content: space-between;
         font-size: 0.72rem;
-        color: var(--muted);
-    }
-    .range-limits .optimum {
-        color: #6ee7b7;
+        color: #7E8494;
     }
 
-    /* SWITCHES */
+    .range-limits .optimum {
+        color: #9EABB8;
+    }
+
+    /* Lista de actuadores */
     .switches-list {
         display: flex;
         flex-direction: column;
@@ -489,190 +436,72 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: rgba(255, 255, 255, 0.03);
-        padding: 10px 14px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    .switch-row.danger-switch {
-        border-color: rgba(239, 68, 68, 0.3);
-        background: rgba(239, 68, 68, 0.05);
+        padding: 0.85rem 1rem;
+        background: #18191D;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: 12px;
     }
 
-    .switch-info {
-        display: flex;
-        flex-direction: column;
-    }
     .switch-info strong {
-        font-size: 0.9rem;
-        color: #fff;
-    }
-    .switch-info span {
-        font-size: 0.75rem;
-        color: var(--muted);
+        font-size: 0.92rem;
+        color: #FFFFFF;
+        font-weight: 500;
     }
 
+    /* Toggle switches elegantes */
     .toggle-switch {
         position: relative;
         display: inline-block;
         width: 48px;
         height: 26px;
+        flex-shrink: 0;
     }
+
     .toggle-switch input {
         opacity: 0;
         width: 0;
         height: 0;
     }
-    .slider.round {
+
+    .slider {
         position: absolute;
         cursor: pointer;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background-color: rgba(255, 255, 255, 0.2);
-        transition: .3s;
-        border-radius: 34px;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #2A2C32;
+        transition: 0.25s;
+        border-radius: 9999px;
     }
-    .slider.round:before {
+
+    .slider:before {
         position: absolute;
         content: "";
-        height: 18px;
-        width: 18px;
-        left: 4px;
-        bottom: 4px;
-        background-color: white;
-        transition: .3s;
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: #FFFFFF;
+        transition: 0.25s;
         border-radius: 50%;
     }
+
     input:checked + .slider {
-        background-color: #10b981;
+        background-color: #38BDF8;
     }
+
     input:checked + .slider.danger {
-        background-color: #ef4444;
+        background-color: #EF4444;
     }
+
     input:checked + .slider:before {
         transform: translateX(22px);
-    }
-
-    .output-preview {
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid rgba(33, 209, 219, 0.2);
-        border-radius: 10px;
-        padding: 14px;
-        margin-top: 10px;
-    }
-    .output-preview h4 {
-        margin: 0 0 10px 0;
-        font-size: 0.85rem;
-        color: var(--cyan);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .preview-metrics {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
-        text-align: center;
-    }
-    .metric-item {
-        background: rgba(255, 255, 255, 0.03);
-        padding: 8px 4px;
-        border-radius: 6px;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-    .metric-item span {
-        font-size: 0.72rem;
-        color: var(--muted);
-    }
-    .metric-item strong {
-        font-size: 0.95rem;
-        color: #fff;
-    }
-    .text-success { color: #4ade80 !important; }
-    .text-danger { color: #f87171 !important; }
-    .preview-hint {
-        font-size: 0.78rem;
-        color: #94a3b8;
-        margin: 10px 0 0 0;
-        line-height: 1.4;
-    }
-
-    .sim-charts-link {
-        display: block;
-        margin-top: 12px;
-        padding: 8px 12px;
-        background: rgba(34, 211, 238, 0.12);
-        border: 1px solid rgba(34, 211, 238, 0.4);
-        border-radius: 8px;
-        color: #22d3ee;
-        text-align: center;
-        text-decoration: none;
-        font-size: 0.82rem;
-        font-weight: 700;
-        transition: all 0.2s ease;
-    }
-    .sim-charts-link:hover {
-        background: rgba(34, 211, 238, 0.25);
-        color: #ffffff;
-        box-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
-    }
-
-    @@media (max-width: 768px) {
-        .simulator-header {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 12px;
-        }
-        .page-title {
-            font-size: 1.35rem;
-        }
-        .btn-goto-scada {
-            width: 100%;
-            justify-content: center;
-            min-height: 44px;
-        }
-        .preset-section {
-            padding: 12px;
-        }
-        .preset-buttons {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 8px;
-        }
-        .preset-btn {
-            width: 100%;
-            text-align: center;
-            padding: 10px 12px;
-            min-height: 42px;
-        }
-        .simulator-grid {
-            grid-template-columns: 1fr !important;
-            gap: 14px;
-        }
-        .sim-card {
-            padding: 14px;
-            gap: 14px;
-        }
-        .sim-slider {
-            height: 12px;
-        }
-        .sim-slider::-webkit-slider-thumb {
-            width: 28px;
-            height: 28px;
-        }
-        .preview-metrics {
-            grid-template-columns: 1fr;
-            gap: 6px;
-        }
-        .switch-row {
-            padding: 12px;
-        }
     }
 </style>
 
 @code {
     private SimulatorStateDto SimState = new();
-    private string FeedbackMessage = string.Empty;
     private string CurrentScenario = "normal";
     private CancellationTokenSource _cts = new();
 
@@ -691,20 +520,25 @@
         }
     }
 
+    private async Task SwitchMode(PtapDataSourceMode mode)
+    {
+        Api.Simulation.SetMode(mode);
+        if (mode == PtapDataSourceMode.SimulatedAuto)
+        {
+            Api.Simulation.SimulatePlcDisconnected = false;
+            Api.Simulation.SetScenario("normal");
+        }
+        await LoadStateAsync();
+        StateHasChanged();
+    }
+
     private async Task SyncStateAsync(string reason)
     {
         var result = await Api.UpdateSimulatorStateAsync(SimState, _cts.Token);
         if (result is not null)
         {
             SimState = result;
-            FeedbackMessage = $"✓ {reason} aplicado al proceso en caliente.";
             StateHasChanged();
-
-            _ = Task.Delay(2500).ContinueWith(_ =>
-            {
-                FeedbackMessage = string.Empty;
-                InvokeAsync(StateHasChanged);
-            });
         }
     }
 
@@ -715,7 +549,7 @@
         if (success)
         {
             await LoadStateAsync();
-            FeedbackMessage = $"✓ Escenario '{scenario.ToUpper()}' activado con éxito.";
+            StateHasChanged();
         }
     }
 
@@ -724,8 +558,6 @@
         SimState.BombaPrincipalEstado = false;
         SimState.DosificadorSulfatoEstado = false;
         SimState.DosificadorCloroEstado = false;
-        SimState.PresionB1Base = 0.0;
-        SimState.CaudalB1Base = 0.0;
         await SyncStateAsync("Parada total de emergencia");
     }
 
@@ -734,7 +566,7 @@
         if (double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var val))
         {
             SimState.PhCrudaBase = val;
-            await SyncStateAsync($"pH Cruda cambiado a {val:F2}");
+            await SyncStateAsync($"pH ajustado a {val:F2}");
         }
     }
 
@@ -743,7 +575,7 @@
         if (double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var val))
         {
             SimState.TurbidezCrudaBase = val;
-            await SyncStateAsync($"Turbidez Cruda cambiada a {val:F1} NTU");
+            await SyncStateAsync($"Turbidez ajustada a {val:F1} NTU");
         }
     }
 
@@ -752,42 +584,14 @@
         if (double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var val))
         {
             SimState.ConductividadCrudaBase = val;
-            await SyncStateAsync($"Conductividad Cruda cambiada a {val:F0} µS/cm");
-        }
-    }
-
-    private async Task OnPresionChange(ChangeEventArgs e)
-    {
-        if (double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var val))
-        {
-            SimState.PresionB1Base = val;
-            await SyncStateAsync($"Presión cambiada a {val:F2} bar");
-        }
-    }
-
-    private async Task OnCaudalChange(ChangeEventArgs e)
-    {
-        if (double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var val))
-        {
-            SimState.CaudalB1Base = val;
-            await SyncStateAsync($"Caudal cambiado a {val:F1} L/min");
+            await SyncStateAsync($"Conductividad ajustada a {val:F0} µS/cm");
         }
     }
 
     private async Task ToggleBomba(ChangeEventArgs e)
     {
         SimState.BombaPrincipalEstado = Convert.ToBoolean(e.Value);
-        if (!SimState.BombaPrincipalEstado)
-        {
-            SimState.PresionB1Base = 0.0;
-            SimState.CaudalB1Base = 0.0;
-        }
-        else
-        {
-            SimState.PresionB1Base = 2.45;
-            SimState.CaudalB1Base = 15.0;
-        }
-        await SyncStateAsync($"Bomba B1 {(SimState.BombaPrincipalEstado ? "ENCENDIDA" : "APAGADA")}");
+        await SyncStateAsync($"Bomba Principal {(SimState.BombaPrincipalEstado ? "ENCENDIDA" : "APAGADA")}");
     }
 
     private async Task ToggleSulfato(ChangeEventArgs e)
@@ -802,40 +606,10 @@
         await SyncStateAsync($"Dosificador Cloro {(SimState.DosificadorCloroEstado ? "ENCENDIDO" : "APAGADO")}");
     }
 
-    private async Task ToggleNivel(ChangeEventArgs e)
-    {
-        SimState.NivelTanqueAguaCruda = Convert.ToBoolean(e.Value);
-        await SyncStateAsync($"Nivel tanque {(SimState.NivelTanqueAguaCruda ? "NORMAL" : "BAJO")}");
-    }
-
-    private async Task ToggleModoRemoto(ChangeEventArgs e)
-    {
-        SimState.ModoRemotoHabilitado = Convert.ToBoolean(e.Value);
-        await SyncStateAsync($"Modo remoto {(SimState.ModoRemotoHabilitado ? "HABILITADO" : "DESHABILITADO")}");
-    }
-
     private async Task TogglePlcFalla(ChangeEventArgs e)
     {
         SimState.PlcEnFalla = Convert.ToBoolean(e.Value);
         await SyncStateAsync($"Falla PLC {(SimState.PlcEnFalla ? "FORZADA (ALARMA ACTIVA)" : "NORMALIZADA")}");
-    }
-
-    private double GetEstimatedPhTratada()
-    {
-        if (SimState.DosificadorSulfatoEstado && SimState.BombaPrincipalEstado)
-        {
-            return Math.Max(6.0, SimState.PhCrudaBase - 0.20);
-        }
-        return SimState.PhCrudaBase;
-    }
-
-    private double GetEstimatedTurbTratada()
-    {
-        if (SimState.DosificadorSulfatoEstado && SimState.BombaPrincipalEstado)
-        {
-            return Math.Max(0.25, SimState.TurbidezCrudaBase * 0.025);
-        }
-        return Math.Max(1.5, SimState.TurbidezCrudaBase * 0.45);
     }
 
     public void Dispose()

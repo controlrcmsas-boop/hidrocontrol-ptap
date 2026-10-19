@@ -273,15 +273,15 @@ public sealed class TypeSafeAiClientService
         {
             if (confidenceLevel == "Baja")
             {
-                interventionReason = $"⚠️ Factor de Confianza Bajo ({combinedConfidence:P0}) reportado por TypeSafe Jev. De acuerdo al protocolo de seguridad SCADA, el operador técnico debe asumir el control manual directo de los actuadores (Bomba B1, Dosificadores B2 y B3).";
+                interventionReason = $"Factor de Confianza Bajo ({combinedConfidence:P0}). De acuerdo al protocolo de seguridad SCADA, el operador técnico debe asumir el control manual directo de los actuadores (Bomba B1, Dosificadores B2 y B3).";
             }
             else if (statusChoice == "Critico")
             {
-                interventionReason = "🚨 Estado crítico detectado en la PTAP. Intervención inmediata requerida para ajustar caudal o detener impulsión.";
+                interventionReason = "Estado crítico detectado en la PTAP. Intervención inmediata requerida para ajustar caudal o detener impulsión.";
             }
             else
             {
-                interventionReason = $"⚠️ El modelo Jev estima una probabilidad de {interventionProb:P0} de requerir ajuste operativo manual en campo.";
+                interventionReason = $"Se estima una probabilidad de {interventionProb:P0} de requerir ajuste operativo manual en campo.";
             }
         }
 
@@ -308,7 +308,7 @@ public sealed class TypeSafeAiClientService
             InterventionReason = interventionReason,
             CoagulantAction = coagulantAction,
             DisinfectantAction = chlorineAction,
-            ExecutiveSummary = $"Evaluación TypeSafe Jev: Planta en estado {statusChoice} ({scorePercentage}% de salud operativa). Factor de confianza calibrado: {confidenceLevel} ({combinedConfidence:P0}). Efluente tratado en {turbTreated:F2} NTU con eficiencia de remoción del {removalEfficiency:F1}%.",
+            ExecutiveSummary = $"Planta en estado {statusChoice} ({scorePercentage}% de salud operativa). Confianza: {confidenceLevel} ({combinedConfidence:P0}). Efluente tratado en {turbTreated:F2} NTU con eficiencia de remoción del {removalEfficiency:F1}%.",
             QualityEvaluation = $"Turbidez cruda: {turbRaw:F1} NTU &rarr; Turbidez tratada: {turbTreated:F2} NTU (Límite Resolución 2115: < 2.0 NTU). pH de salida equilibrado.",
             EnergyHydraulicEvaluation = $"Impulsión de Bomba B1 a {pressure:F2} bar y {flow:F1} L/min hacia sedimentador lamelar SC-301 y filtro FC-401.",
             ImmediateRecommendations = GenerateImmediateRecommendations(statusChoice, coagulantAction, chlorineAction, requiresIntervention, turbTreated, pressure),
@@ -424,7 +424,7 @@ public sealed class TypeSafeAiClientService
             SuggestedDoseMgL = Math.Round(safeSulfate, 1),
             SuggestedFrequencyHz = Math.Clamp(sulfateFreq, 10.0, 60.0),
             SuggestedAction = coagulantAction == "stop" ? "stop" : (isSulfateOn ? "adjust" : "start"),
-            Reason = $"Decisión TypeSafe Jev ({coagulantAction}): Turbidez cruda en {turbRaw:F1} NTU con caudal {flow:F1} L/min. Dosis calibrada para óptima floculación en FH-201.",
+            Reason = $"Turbidez cruda en {turbRaw:F1} NTU con caudal {flow:F1} L/min. Dosis ajustada para floculación en FH-201.",
             Confidence = confidenceLevel,
             MinSafeLimit = SulfateMinDose,
             MaxSafeLimit = SulfateMaxDose,
@@ -449,7 +449,7 @@ public sealed class TypeSafeAiClientService
             SuggestedDoseMgL = Math.Round(safeChlorine, 2),
             SuggestedFrequencyHz = Math.Clamp(chlorineFreq, 10.0, 60.0),
             SuggestedAction = chlorineAction == "stop" ? "stop" : (isChlorineOn ? "adjust" : "start"),
-            Reason = $"Decisión TypeSafe Jev ({chlorineAction}): Asegura residual libre entre 0.5 - 2.0 ppm en TK-501 según Resolución 2115.",
+            Reason = $"Asegura cloro residual libre entre 0.5 - 2.0 ppm en TK-501 según Resolución 2115.",
             Confidence = confidenceLevel,
             MinSafeLimit = ChlorineMinDose,
             MaxSafeLimit = ChlorineMaxDose,
@@ -497,7 +497,7 @@ public sealed class TypeSafeAiClientService
                 Equipment = "Filtro FC-401",
                 Title = "Parámetros de filtración estables",
                 Description = $"Turbidez tratada en {turbTreated:F1} NTU, cumpliendo la Resolución 2115 (< 2.0 NTU).",
-                RecommendedAction = "Continuar régimen de operación estándar validado por TypeSafe."
+                RecommendedAction = "Continuar régimen de operación nominal."
             });
         }
 
@@ -531,7 +531,7 @@ public sealed class TypeSafeAiClientService
 
         if (requiresIntervention)
         {
-            list.Add("⚠️ Operador Técnico: Tomar control manual inmediato de los actuadores y verificar las presiones.");
+            list.Add("Operador Técnico: Tomar control manual de los actuadores y verificar presiones.");
         }
 
         if (coagulantAction == "increase")
@@ -540,7 +540,7 @@ public sealed class TypeSafeAiClientService
         }
         else
         {
-            list.Add("Mantener régimen de coagulación actual calibrado por TypeSafe.");
+            list.Add("Mantener régimen de coagulación actual.");
         }
 
         if (turbTreated > 1.5)
@@ -721,28 +721,28 @@ public sealed class TypeSafeAiClientService
             var confScore = currentEval?.ConfidenceScore ?? 0.88;
             var removal = turbRaw > 0 ? ((turbRaw - turbTreated) / turbRaw * 100.0) : 0.0;
 
-            return ($"🛡️ **Diagnóstico de Calidad Calibrado por TypeSafe Jev:**\n\n" +
-                   $"• **Estado Clasificado:** **{currentEval?.OverallStatus ?? "Optimo"}** (Factor de Confianza: **{conf} [{confScore:P0}]**)\n" +
+            return ($"**Diagnóstico de Calidad:**\n\n" +
+                   $"• **Estado Clasificado:** **{currentEval?.OverallStatus ?? "Optimo"}** (Confianza: **{conf} [{confScore:P0}]**)\n" +
                    $"• **Agua Cruda (Entrada):** Turbidez en **{turbRaw:F1} NTU**.\n" +
                    $"• **Agua Tratada (Salida):** Turbidez en **{turbTreated:F2} NTU** (Límite Resolución 2115: < 2.0 NTU).\n" +
                    $"• **Eficiencia de Remoción:** **{removal:F1}%**.\n\n" +
-                   $"✅ El sedimentador SC-301 y el filtro FC-401 operan dentro de los parámetros esperados.", null);
+                   $"El sedimentador SC-301 y el filtro FC-401 operan dentro de los parámetros esperados.", null);
         }
 
         if (q.Contains("ph") && (q.Contains("bajo") || q.Contains("acido") || q.Contains("consecuencia")))
         {
-            return ("💧 **Evaluación Técnica de pH Bajo en HIDROCONTROL PTAP:**\n\n" +
+            return ("**Evaluación Técnica de pH Bajo en HIDROCONTROL PTAP:**\n\n" +
                    "1. **Corrosión:** El agua ácida (pH < 6.5) corroe las tuberías metálicas y disuelve el calcio del hormigón de los tanques.\n" +
                    "2. **Floculación Ineficiente:** El Sulfato de Aluminio requiere un pH óptimo entre 6.5 y 7.8 para formar hidróxido de aluminio Al(OH)3 insoluble.\n" +
                    "3. **Inestabilidad del Cloro:** El ácido hipocloroso se volatiliza más rápido, perdiendo residual libre en red.\n" +
                    "4. **Recomendación:** Dosificar alcalinizante para restablecer pH entre 7.0 y 7.5.", null);
         }
 
-        return ($"🛡️ **Supervisor TypeSafe AI (Jev System One):**\n\n" +
+        return ($"**Asistente Inteligente PTAP:**\n\n" +
                $"La planta reporta Bomba B1 **{(b1On ? "ENCENDIDA" : "APAGADA")}**, caudal de **{flow:F1} L/min** y presión de **{pressure:F1} bar**.\n" +
                $"Agua Cruda: **{turbRaw:F1} NTU** | Agua Tratada: **{turbTreated:F2} NTU**.\n" +
-               $"Factor de Confianza Calibrado: **{currentEval?.ConfidenceLevel ?? "Alta"} ({currentEval?.ConfidenceScore ?? 0.90:P0})**.\n\n" +
-               $"Puedes solicitar diagnósticos o ejecutar órdenes seguras de control (ej: 'Apagar bomba B1', 'Desenergizar toda la planta', 'Verificar calidad').", null);
+               $"Confianza de Diagnóstico: **{currentEval?.ConfidenceLevel ?? "Alta"} ({currentEval?.ConfidenceScore ?? 0.90:P0})**.\n\n" +
+               $"Puedes solicitar diagnósticos o ejecutar órdenes de control (ej: 'Apagar bomba B1', 'Desenergizar toda la planta', 'Verificar calidad').", null);
     }
 
     /// <summary>
@@ -820,15 +820,15 @@ public sealed class TypeSafeAiClientService
             ConfidenceLevel = "Baja",
             ConfidenceScore = lowConfidence,
             RequiresOperatorIntervention = true,
-            InterventionReason = "🚨 ALERTA CRÍTICA SCADA: Factor de Confianza Bajo (38%) reportado por TypeSafe Jev debido a fluctuaciones y turbidez elevada. El control autónomo se suspende y el Técnico Operador debe asumir el mando manual de todos los actuadores (Bomba B1, Dosificadores B2 y B3).",
+            InterventionReason = "Factor de Confianza Bajo (38%) debido a fluctuaciones y turbidez elevada. El control autónomo se suspende y el Técnico Operador debe asumir el mando manual de los actuadores (Bomba B1, Dosificadores B2 y B3).",
             CoagulantAction = "increase",
             DisinfectantAction = "increase",
-            ExecutiveSummary = "ALERTA SCADA: Proceso en condición inestable con 38% de certeza en modelo Jev. Turbidez tratada en 1.95 NTU próxima al límite de 2.0 NTU. Toma de control manual activada.",
+            ExecutiveSummary = "Proceso en condición inestable con 38% de certeza diagnóstica. Turbidez tratada en 1.95 NTU próxima al límite de 2.0 NTU. Toma de control manual activada.",
             QualityEvaluation = "Turbidez de agua tratada en riesgo de exceder la norma. Se requiere ajuste de parámetros por operador calificado.",
             EnergyHydraulicEvaluation = "Presión de impulsión elevada en 3.1 bar. Posible sobrecarga de filtro FC-401.",
             ImmediateRecommendations =
             [
-                "⚠️ ASUMIR CONTROL MANUAL DE ACTUADORES DE FORMA INMEDIATA.",
+                "Asumir control manual de actuadores de forma inmediata.",
                 "Verificar visualmente formación de flóculos en floculador FH-201.",
                 "Reducir bombeo si la presión supera 3.2 bar."
             ],

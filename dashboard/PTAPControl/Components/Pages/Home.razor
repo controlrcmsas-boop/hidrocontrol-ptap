@@ -79,31 +79,31 @@
                 <div class="equipment-hotspot hotspot-tk101 @(_activeEquipment == "TK-101" ? "active" : "")" 
                      @onclick='() => ToggleEquipment("TK-101")' 
                      tabindex="0"
-                     title="Tanque Agua Cruda">
+                     title="Tanque Principal">
                     <span class="hotspot-pin"></span>
                     <div class="hotspot-popover">
                         <span class="popover-code">TK-101</span>
-                        <span class="popover-name">Tanque Agua Cruda</span>
+                        <span class="popover-name">Tanque Principal</span>
                     </div>
                 </div>
 
                 <div class="equipment-hotspot hotspot-tk501 @(_activeEquipment == "TK-501" ? "active" : "")" 
                      @onclick='() => ToggleEquipment("TK-501")' 
                      tabindex="0"
-                     title="Tanque Agua Tratada">
+                     title="Tanque de Agua">
                     <span class="hotspot-pin"></span>
                     <div class="hotspot-popover">
                         <span class="popover-code">TK-501</span>
-                        <span class="popover-name">Tanque Agua Tratada</span>
+                        <span class="popover-name">Tanque de Agua</span>
                     </div>
                 </div>
 
                 <!-- Menú desplegable interactivo de Agua Tratada con flecha hacia abajo -->
                 <div class="treated-water-interactive-card">
                     <button type="button" class="btn-treated-water-toggle @(_showTreatedMenu ? "open" : "")" 
-                            @onclick="ToggleTreatedMenu" aria-label="Desplegar datos de Agua Tratada">
+                            @onclick="ToggleTreatedMenu" aria-label="Desplegar datos de Calidad del Agua">
                         <span class="treated-dot"></span>
-                        <span class="treated-text">AGUA TRATADA</span>
+                        <span class="treated-text">CALIDAD DEL AGUA</span>
                         <span class="treated-arrow">▼</span>
                     </button>
 
@@ -132,7 +132,7 @@
                 <div class="mobile-metric-card mobile-treated-card">
                     <button type="button" class="mobile-treated-toggle @(_showTreatedMenu ? "open" : "")" @onclick="ToggleTreatedMenu">
                         <span class="treated-dot"></span>
-                        <span class="mobile-toggle-title">Agua Tratada</span>
+                        <span class="mobile-toggle-title">Calidad del Agua</span>
                         <span class="treated-arrow">▼</span>
                     </button>
                     @if (_showTreatedMenu)
@@ -193,10 +193,10 @@
             </AuthorizeView>
 
             <section class="panel-section compact-metrics">
-                <h2>Calidad Agua Tratada</h2>
-                <div class="metric-row"><span>pH tratada</span><strong>@FormatNumber("ph_agua_tratada", "0.00") <small>pH</small></strong></div>
-                <div class="metric-row"><span>Turbidez tratada</span><strong>@FormatNumber("turbidez_agua_tratada", "0.00") <small>NTU</small></strong></div>
-                <div class="metric-row"><span>Conductividad tratada</span><strong>@FormatNumber("conductividad_agua_tratada", "0") <small>µS/cm</small></strong></div>
+                <h2>Calidad del Agua</h2>
+                <div class="metric-row"><span>pH</span><strong>@FormatNumber("ph_agua_tratada", "0.00") <small>pH</small></strong></div>
+                <div class="metric-row"><span>Turbidez</span><strong>@FormatNumber("turbidez_agua_tratada", "0.00") <small>NTU</small></strong></div>
+                <div class="metric-row"><span>Conductividad</span><strong>@FormatNumber("conductividad_agua_tratada", "0") <small>µS/cm</small></strong></div>
                 <a href="historicos" class="btn-quality-charts-link">
                     Ver Curvas y Gráficas de Proceso &rarr;
                 </a>

@@ -10,7 +10,7 @@
 @inject AiChatStateService ChatState
 @inject PtapKnowledgeService Knowledge
 
-<PageTitle>Análisis IA — HIDROCONTROL PTAP</PageTitle>
+<PageTitle>MO — Análisis IA & Supervisión PTAP</PageTitle>
 
 <section class="ai-page">
     <!-- Encabezado Superior Estándar Unificado -->
@@ -246,11 +246,11 @@
                     </div>
                     <div>
                         <h2>
-                            <span>Asistente Operativo PTAP</span>
+                            <span>MO &mdash; Copiloto IA de Planta</span>
                         </h2>
                         <p>
-                            Agua Cruda: <strong style="color: #38bdf8;">@(Telemetry?.GetNumber("turbidez_agua_cruda")?.ToString("F1") ?? "--") NTU</strong> &bull; 
-                            Agua Tratada: <strong style="color: #38bdf8;">@(Telemetry?.GetNumber("turbidez_agua_tratada")?.ToString("F1") ?? "--") NTU</strong> &bull; 
+                            Turbidez Entrada: <strong style="color: #38bdf8;">@(Telemetry?.GetNumber("turbidez_agua_cruda")?.ToString("F1") ?? "--") NTU</strong> &bull; 
+                            Turbidez Proceso: <strong style="color: #38bdf8;">@(Telemetry?.GetNumber("turbidez_agua_tratada")?.ToString("F1") ?? "--") NTU</strong> &bull; 
                             Bomba: <strong style="color: @(Telemetry?.GetBool("bomba_principal_estado") == true ? "#38bdf8" : "#94a3b8");">@(Telemetry?.GetBool("bomba_principal_estado") == true ? "Encendida" : "Apagada")</strong>
                         </p>
                     </div>
@@ -606,7 +606,7 @@
             Operator = "Operador Autorizado",
             DoseMgL = suggestion.SuggestedDoseMgL,
             Details = $"Aprobada consigna de {suggestion.SuggestedDoseMgL} mg/L ({suggestion.SuggestedFrequencyHz} Hz) para {suggestion.TargetEquipment}.",
-            RawWaterConditions = $"Turb. Cruda: {rawTurb} NTU, Caudal: {flow} L/min"
+            RawWaterConditions = $"Turb. Entrada: {rawTurb} NTU, Caudal: {flow} L/min"
         });
 
         // Enviar comando a Node-RED -> PLC
@@ -639,7 +639,7 @@
             Operator = "Operador",
             DoseMgL = suggestion.SuggestedDoseMgL,
             Details = "Sugerencia descartada por el operador. Las consignas del PLC se mantienen sin modificaciones.",
-            RawWaterConditions = $"Turb. Cruda: {rawTurb} NTU, Caudal: {flow} L/min"
+            RawWaterConditions = $"Turb. Entrada: {rawTurb} NTU, Caudal: {flow} L/min"
         });
 
         StatusMessage = $"Sugerencia para {suggestion.Chemical} descartada. El PLC mantiene su operación habitual.";

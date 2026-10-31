@@ -32,8 +32,11 @@ if %errorlevel% equ 0 (
 ) else (
     color 0e
     echo [!] No se pudo aplicar con el nombre 'Ethernet'. Intentando con adaptadores disponibles...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $adapter = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceAlias -notlike '*Wi-Fi*' -and $_.InterfaceAlias -notlike '*Loopback*' } | Select-Object -First 1; if ($adapter) { New-NetIPAddress -InterfaceAlias $adapter.InterfaceAlias -IPAddress 192.168.1.50 -PrefixLength 24 -ErrorAction SilentlyContinue; Write-Host ('[+] IP configurada en: ' + $adapter.InterfaceAlias) -ForegroundColor Green } else { Write-Host '[!] Conecta el cable Ethernet y vuelve a ejecutar.' -ForegroundColor Yellow } }"
 )
+
+echo [*] Protegiendo conexion Wi-Fi (Prioridad Metrica: Wi-Fi=10, Ethernet=50)...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-NetIPInterface -InterfaceAlias '*Wi-Fi*' -ErrorAction SilentlyContinue | Set-NetIPInterface -InterfaceMetric 10 -ErrorAction SilentlyContinue; Get-NetIPInterface -InterfaceAlias '*Ethernet*' -ErrorAction SilentlyContinue | Set-NetIPInterface -InterfaceMetric 50 -ErrorAction SilentlyContinue"
+
 
 echo.
 echo [*] Verificando comunicaci?n inmediata con el PLC (192.168.1.110)...

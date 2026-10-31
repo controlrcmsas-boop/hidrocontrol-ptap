@@ -28,7 +28,14 @@ echo.
 
 :: 3. Iniciar Node-RED en entorno Node.js
 echo [*] 2/2 Iniciando motor de adquisici?n Node-RED (Lectura PLC Siemens)...
-start "Node-RED - Enlace PLC Siemens" cmd /k "title Node-RED (PLC S7-1200) && node-red.cmd || node-red"
+set "PATH=%APPDATA%\npm;C:\Users\Sandra\AppData\Roaming\npm;%ProgramFiles%\nodejs;%PATH%"
+if exist "%APPDATA%\npm\node-red.cmd" (
+    start "Node-RED - Enlace PLC Siemens" cmd /k "title Node-RED (PLC S7-1200) && \"%APPDATA%\npm\node-red.cmd\""
+) else if exist "C:\Users\Sandra\AppData\Roaming\npm\node-red.cmd" (
+    start "Node-RED - Enlace PLC Siemens" cmd /k "title Node-RED (PLC S7-1200) && \"C:\Users\Sandra\AppData\Roaming\npm\node-red.cmd\""
+) else (
+    start "Node-RED - Enlace PLC Siemens" cmd /k "title Node-RED (PLC S7-1200) && node-red.cmd || npx node-red"
+)
 
 timeout /t 4 /nobreak >nul
 

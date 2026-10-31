@@ -1,125 +1,57 @@
-# HIDROCONTROL PTAP V2.2 - ESTADO ACTUAL DE PLANTA Y HOJA DE RUTA MAÑANA
+# HIDROCONTROL PTAP V2.2 — ESTADO ACTUAL Y HOJA DE RUTA
 
-> **Fecha de congelamiento:** 15 de Octubre de 2026 - 17:50  
-> **Propósito:** Reanudar de inmediato mañana sin necesidad de recordar ni explicar nada. Solo di: *"Lee el archivo docs/ESTADO_ACTUAL_PLANTA_Y_PASOS_MANANA.md y comencemos"* y sabré exactamente en qué punto quedamos.
-
-
----
-
-## 0. GUÍA PASO A PASO: CÓMO ARRANCAR TODO DESDE CERO (SI EL PORTÁTIL SE REINICIÓ)
-
-Si el computador portátil se reinicia o se apaga, esta es la secuencia exacta para dejarlo todo operando en 2 minutos:
-
-### Paso A: Conexiones Físicas
-1. **Cable de Red Ethernet:** Conectado del portátil al switch o directamente al PLC Siemens S7-1200.
-   * *Verificación IP del portátil:* Debe estar configurado en IP estática `192.168.1.50`, máscara `255.255.255.0`.
-2. **Cable USB de la Pantalla SEEKU:** Conectado al puerto USB del portátil (debe ser `COM4`).
-3. **Cargador de corriente:** Conectado a la toma eléctrica (para evitar suspensión por batería).
-
-### Paso B: Arrancar los 3 Servicios (En sus 3 Ventanas)
-Toda la aplicación de planta vive en la carpeta local: **`C:\SERVIDOR_HIDROCONTROL`**.
-
-* **Opción Rápida (1 solo clic):**
-  Doble clic al archivo: **`C:\SERVIDOR_HIDROCONTROL\Arrancar-Servidor-Planta.bat`** (él arranca automáticamente Tailscale, Node-RED y el Agente Edge).
-
-* **Opción Manual (Paso a paso en CMD):**
-  * **Ventana 1 (Node-RED):**
-    Abre una ventana de CMD en cualquier ubicación y escribe:
-    ```cmd
-    node-red
-    ```
-    *(Verás el mensaje `Welcome to Node-RED` y que se conecta exitosamente a DB10).*
-  * **Ventana 2 (Túnel Tailscale para la Nube):**
-    Abre otra ventana de CMD y escribe:
-    ```cmd
-    tailscale funnel --bg 1880
-    ```
-  * **Ventana 3 (Servidor Edge & Base de Datos SQLite):**
-    Abre el explorador de Windows en la carpeta `C:\SERVIDOR_HIDROCONTROL`. En la barra de direcciones de la carpeta escribe `cmd` y dale Enter. Luego escribe:
-    ```cmd
-    node services\edge-agent\edge-agent.js
-    ```
-    *(Verás el registro continuo guardando telemetría cada 5 segundos en SQLite).*
-
-### Paso C: ¿Y si hacemos cambios de código? (Sin descargar zips)
-Si modificamos algún archivo (por ejemplo `edge-agent.js` o flujos de Node-RED):
-* **NO hay que volver a descargar todo el zip.**
-* Se actualiza únicamente el archivo individual mediante un comando rápido de PowerShell de 1 línea pegado en la ventana de CMD, o editándolo directamente.
+> **Fecha de congelamiento:** 20 de Octubre de 2026 — 14:35  
+> **Ubicación de pruebas:** Oficina de Planta  
+> **Propósito:** Reanudar de inmediato la sesión de trabajo en casa sin olvidar ningún detalle técnico de lo ocurrido hoy en el hardware.
 
 ---
 
-## 1. ESTADO ACTUAL DEL HARDWARE EN OFICINA
+## 1. GRANDES HITOS ALCANZADOS HOY EN OFICINA (100% VERIFICADOS)
 
-### A. Pantalla Táctil Industrial SEEKU WSB7048R (HMI & PLC All-in-One)
-* **Estado:** ✅ **COMUNICACIÓN ESTABLECIDA Y CONFIRMADA.**
-* **Conexión física:** Adaptador USB a RS485 con cables conectados a la regleta verde derecha de la pantalla:
-  * **Cable A** del USB $\rightarrow$ Bornera **`A`** (primer tornillo superior derecho).
-  * **Cable B** del USB $\rightarrow$ Bornera **`B`** (segundo tornillo superior derecho).
-* **Parámetros Seriales Confirmados:**
-  * **Puerto:** `COM4` (Driver CH340).
-  * **Baudios:** `38,400` baud.
-  * **Paridad:** `None`.
-  * **Bits de datos:** `8`.
-  * **Bits de parada:** `1`.
-  * **Protocolo:** Mitsubishi FX (Responde con código `ACK 0x06` al saludo `0x05`).
+1. **Auto-Arranque del Servidor Físico Funcionando al 100%:**
+   * Al encender el computador servidor de oficina (usuario `Luchi`), Windows ejecuta automáticamente el archivo maestro `C:\SERVIDOR_HIDROCONTROL\ARRANCAR-TODO.bat` desde `shell:startup`.
+   * Arranca Node-RED y el Agente Edge en segundo plano sin intervención humana.
 
-### B. PLC Siemens S7-1200 (Control Maestro de Potencia)
-* **IP PLC:** `192.168.1.110` (Puerto 102 ISO-on-TCP).
-* **IP Laptop (Servidor Edge):** `192.168.1.50/24`.
-* **Bloque de Datos Maestro:** `DB10`.
-* **Estado:** Totalmente operativo en vivo vía Node-RED.
+2. **Lectura Real de Instrumentación del PLC Siemens S7-1200 en Vivo:**
+   * El enlace Ethernet entre el servidor (`192.168.1.50`) y el PLC (`192.168.1.110`) lee el bloque `DB10` de forma estable.
+   * Valores reales recibidos de los sensores al aire:
+     * **pH:** `5.2` (lectura analógica real).
+     * **Turbidez:** `482.9 NTU` (voltaje base de sensor óptico al aire).
+     * **Conductividad:** `0.9 µS/cm` (sensor al aire).
 
-### C. Sensores de Instrumentación (Arduino en Entradas Analógicas)
-Caracterización física real realizada en oficina el 15/10/2026:
+3. **Lógica de Decisión Autónoma de la IA Probada en Hardware Real:**
+   * Al arrancar la bomba principal, el **Agente Local Offline** detectó la turbidez alta del sensor al aire y envió la orden automática de arranque al **Dosificador de Sulfato**, ¡y el dosificador prendió en la vida real!
+   * El ciclo cerrado de supervisión y mando automático del agente quedó demostrado físicamente.
 
-| Sensor | Agua Limpia (Base) | Muestra de Prueba | Lectura en Prueba | Diagnóstico Físico |
-| :--- | :---: | :--- | :---: | :--- |
-| **pH** | `6.64 pH` | Agua con limón | `4.75 pH` | Funciona perfecto, sensible al ácido. |
-| **Turbidez (Óptico)** | `484.3 NTU` | Agua con tierra | `332 NTU` / negativos | **Sensor Invertido:** En agua limpia entrega voltaje alto (~484); al ensuciarse baja el voltaje. |
-| **Conductividad** | `66.3 µS/cm` | Agua con sal | `478.0 µS/cm` | Funciona excelente, subió 7 veces con iones de sal. |
-
-### D. Sensor de Nivel de Tanque
-* No hay boya física conectada al PLC en este montaje.
-* **Bypass de seguridad:** Activo en `edge-agent.js` para permitir el funcionamiento de la bomba sin disparos falsos de marcha en seco.
+4. **Diseño de Pantalla SEEKU HMI Completado y Cargado:**
+   * Proyecto compilado y subido a la pantalla táctil de 7" con estética moderna.
+   * **Columna 01:** Estado de Actuadores (Indicadores informativos de solo lectura para Bomba, Sulfato y Cloro).
+   * **Columna 02:** Medición del Proceso (Números limpios para pH, Turbidez y Conductividad).
+   * **Columna 03:** Agente Local IA (Gráfico de onda y campo de texto dinámico "Observación de campo").
 
 ---
 
-## 2. ESTADO DEL SOFTWARE Y SERVICIOS EN EL PORTÁTIL
+## 2. HALLAZGOS Y PUNTOS EXACTOS A REFINAR MAÑANA EN CASA
 
-1. **Node-RED (`http://localhost:1880`):**
-   * Corre en segundo plano leyendo el Siemens S7-1200 DB10 cada segundo.
-   * Endpoints de telemetría y comandos operativos:
-     * Telemetría: `GET /api/telemetry/current`
-     * Comandos: `POST /api/control/command` con `{ target, command, source }`.
-2. **Servidor Edge de Planta (`edge-agent.js`):**
-   * Ubicación en el portátil: `C:\SERVIDOR_HIDROCONTROL\services\edge-agent\edge-agent.js`.
-   * Base de datos local: SQLite `database/ptap-edge-history.db` grabando cada 5 segundos.
-   * Agente Local Offline: Detecta turbidez y envía órdenes de control de dosificación.
-3. **Tailscale Funnel:**
-   * Puerto 1880 expuesto para la nube.
-4. **App Web Cloud:**
-   * URL: `https://hidrocontrol.potenzia.app` (Máquina Fly.io `78121eda0e19e8`). Permite mando remoto de bomba y dosificadores.
+### A. Interlock y Estabilidad del Agente Local (`edge-agent.js`):
+1. **Apagado en Cascada (Interlock con la Bomba):**
+   * Cuando la bomba principal se apaga, los dosificadores de sulfato y cloro **deben detenerse de forma inmediata e incondicional** para no gastar reactivos químicos ni inyectar en tubería estática.
+   * Si la bomba está apagada, el agente no debe evaluar turbidez ni intentar encender dosificadores.
+2. **Protección contra caídas del Agente (Crash Protection):**
+   * Cuando se apagó el dosificador manualmente varias veces, el proceso del agente se detuvo.
+   * Causa: Una excepción o rechazo HTTP no capturado en `sendCommand()` o en el bucle principal interrumpió el proceso de Node.js.
+   * Solución: Envolver las llamadas en bloques `try/catch` con reconexión automática y persistencia de estado para que el agente sea inmortal y nunca se detenga.
+3. **Histéresis y Temporizador Mínimo:**
+   * Evitar encendidos y apagados repetitivos (anti-rebote) con un tiempo mínimo de permanencia (ej. mínimo 30 segundos encendido antes de evaluar apagado).
 
----
-
-## 3. PLAN DE TRABAJO EXACTO PARA MAÑANA (3 PASOS)
-
-### Paso 1: Enlazar la Pantalla SEEKU en Node-RED con el Siemens S7-1200
-* Agregar un nodo Serial a Node-RED escuchando `COM4` a 38400 baud.
-* Mapear los botones de la pantalla táctil (`M0`, `M1`, `M2`) para que al tocarlos envíen la orden a las salidas del Siemens S7-1200 (`Q0.0`, `Q0.1`, `Q0.2`).
-* Comprobar que al tocar el botón en la pantalla física prenda la bomba real.
-
-### Paso 2: Escalamiento / Calibración de Sensores por Software
-* Aplicar la fórmula de inversión de turbidez:  
-  $$\text{Turbidez Real} = \text{Max}\left(0.5, \; (485 - \text{Raw}) \times 2.0\right)$$
-  *(Para que agua limpia marque ~0.8 NTU y con tierra marque ~300 NTU).*
-* Calibrar el pH para centrar agua limpia en 7.0 pH y limón en 3.5 pH.
-* Escalar la conductividad para mostrar microSiemens/cm estándar.
-
-### Paso 3: Ajuste de Gráficas en la App Web
-* Conectar las gráficas históricas de la web para leer los datos de SQLite (`ptap-edge-history.db`).
-* Ajustar la escala vertical del gráfico de turbidez (0 a 500 NTU) y el eje temporal.
+### B. Enlace Serial de la Pantalla (`ENLACE-PANTALLA.bat`):
+* El script de enlace abrió la ventana y se cerró.
+* Causa probable: El puerto serial `COM4` pudo haber estado ocupado por otro proceso (o por la consola de pruebas) o faltó una pausa para visualizar la traza de error.
+* Solución: Dejaremos el script con auto-detección de puerto, manejo de excepciones de puerto ocupado y reconexión automática en bucle.
 
 ---
 
-*¡Documento listo y verificado! Puedes desconectarte con total tranquilidad.*
+## 3. ARCHIVOS CLAVE PARA TRABAJAR MAÑANA:
+* `services/edge-agent/edge-agent.js`: Motor del Agente Local y control de actuadores.
+* `scripts/Puente-Pantalla-SEEKU-COM4.ps1`: Servidor Modbus RTU para la pantalla física.
+* `ARRANCAR-TODO.bat`: Script maestro de inicio automático.

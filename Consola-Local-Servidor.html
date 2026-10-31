@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consola Local de Planta — HIDROCONTROL PTAP</title>
+    <style>
+        :root {
+            --bg-primary: #0F172A;
+            --bg-card: #1E2530;
+            --bg-card-hover: #262E3B;
+            --line: rgba(255, 255, 255, 0.08);
+            --line-focus: #38BDF8;
+            --text-main: #F1F5F9;
+            --text-muted: #94A3B8;
+            --text-sub: #64748B;
+            --blue-corp: #2585E8;
+            --cyan-accent: #38BDF8;
+            --green-ok: #10B981;
+            --amber-warn: #F59E0B;
+            --red-danger: #EF4444;
+            --radius-card: 16px;
+            --radius-pill: 9999px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem 2rem;
+            overflow-x: hidden;
+        }
+
+        /* Encabezado */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .brand-block h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #FFFFFF;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand-block h1 span {
+            color: var(--cyan-accent);
+        }
+
+        .brand-block p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 3px;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.35rem 0.9rem;
+            border-radius: var(--radius-pill);
+            background: var(--bg-card);
+            border: 1px solid var(--line);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--sub-text);
+        }
+
+        .dot.online { background-color: var(--green-ok); box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+        .dot.offline { background-color: var(--red-danger); }
+        .dot.local { background-color: var(--cyan-accent); }
+
+        .time-box {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Layout Grid */
+        .console-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.1fr;
+            gap: 1.5rem;
+            flex: 1;
+        }
+
+        @media (max-width: 950px) {
+            .console-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-card);
+            padding: 1.4rem 1.6rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .card-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Sensores */
+        .sensor-row {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 1rem 1.2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .sensor-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .sensor-name {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .sensor-val {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #FFFFFF;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sensor-val span {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--cyan-accent);
+            margin-left: 4px;
+        }
+
+        .sensor-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: var(--radius-pill);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .sensor-bar-fill {
+            height: 100%;
+            background: var(--blue-corp);
+            border-radius: var(--radius-pill);
+            transition: width 0.4s ease;
+        }
+
+        .sensor-footer {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.72rem;
+            color: var(--text-sub);
+        }
+
+        /* Actuadores */
+        .actuator-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+        }
+
+        .actuator-row {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 1.1rem 1.3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .actuator-row.active {
+            border-color: rgba(56, 189, 248, 0.35);
+            background: rgba(37, 133, 232, 0.08);
+        }
+
+        .actuator-info h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #FFFFFF;
+        }
+
+        .actuator-info p {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 3px;
+        }
+
+        .actuator-ctrl {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-pill {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.25rem 0.65rem;
+            border-radius: var(--radius-pill);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-sub);
+            letter-spacing: 0.04em;
+        }
+
+        .status-pill.on {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--green-ok);
+        }
+
+        /* Switch Toggle */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 28px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #2A3342;
+            transition: .25s;
+            border-radius: var(--radius-pill);
+            border: 1px solid var(--line);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .25s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--blue-corp);
+            border-color: var(--blue-corp);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+
+        .btn-stop-all {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #FCA5A5;
+            padding: 0.85rem;
+            border-radius: 12px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .btn-stop-all:hover {
+            background: var(--red-danger);
+            color: #FFFFFF;
+        }
+
+        /* MO Local Box */
+        .mo-box {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-radius: 12px;
+            padding: 1rem 1.2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .mo-box-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mo-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--cyan-accent);
+            text-transform: uppercase;
+        }
+
+        .mo-text {
+            font-size: 0.85rem;
+            line-height: 1.45;
+            color: #E2E8F0;
+            font-family: monospace;
+        }
+
+        .interlock-alert {
+            font-size: 0.75rem;
+            color: var(--amber-warn);
+            display: none;
+            margin-top: 4px;
+        }
+
+        .interlock-alert.visible {
+            display: block;
+        }
+
+        footer {
+            margin-top: 1.5rem;
+            padding-top: 0.8rem;
+            border-top: 1px solid var(--line);
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-sub);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand-block">
+            <h1>HIDROCONTROL <span>PTAP</span></h1>
+            <p>Consola Local de Planta &bull; Respaldo Autónomo en Servidor</p>
+        </div>
+        <div class="header-status">
+            <div class="status-badge">
+                <span id="plcDot" class="dot offline"></span>
+                <span id="plcText">PLC Siemens S7-1200</span>
+            </div>
+            <div class="status-badge">
+                <span class="dot local"></span>
+                <span>Modo Local Edge (Offline)</span>
+            </div>
+            <div class="time-box" id="clockTime">--:--:--</div>
+        </div>
+    </header>
+
+    <div class="console-grid">
+
+        <!-- COLUMNA 1: VARIABLES DE PROCESO EN TIEMPO REAL -->
+        <div class="card">
+            <div class="card-title">
+                <span>Variables de Proceso</span>
+                <span style="font-size: 0.75rem; color: var(--text-sub);">DB10_SCADA_READ</span>
+            </div>
+
+            <!-- pH -->
+            <div class="sensor-row">
+                <div class="sensor-top">
+                    <span class="sensor-name">Potencial de Hidrógeno (pH)</span>
+                    <span class="sensor-val"><span id="phVal">--</span> <span>pH</span></span>
+                </div>
+                <div class="sensor-bar-bg">
+                    <div class="sensor-bar-fill" id="phBar" style="width: 50%;"></div>
+                </div>
+                <div class="sensor-footer">
+                    <span>4.0 (Ácido)</span>
+                    <span style="color: var(--green-ok);">Óptimo (6.5 — 8.5)</span>
+                    <span>10.0 (Alcalino)</span>
+                </div>
+            </div>
+
+            <!-- Turbidez -->
+            <div class="sensor-row">
+                <div class="sensor-top">
+                    <span class="sensor-name">Turbidez</span>
+                    <span class="sensor-val"><span id="turbVal">--</span> <span>NTU</span></span>
+                </div>
+                <div class="sensor-bar-bg">
+                    <div class="sensor-bar-fill" id="turbBar" style="width: 10%;"></div>
+                </div>
+                <div class="sensor-footer">
+                    <span>0.0 NTU</span>
+                    <span style="color: var(--green-ok);">Norma Potable (&lt; 2.0 NTU)</span>
+                    <span>100 NTU</span>
+                </div>
+            </div>
+
+            <!-- Conductividad -->
+            <div class="sensor-row">
+                <div class="sensor-top">
+                    <span class="sensor-name">Conductividad Iónica (TDS)</span>
+                    <span class="sensor-val"><span id="condVal">--</span> <span>µS/cm</span></span>
+                </div>
+                <div class="sensor-bar-bg">
+                    <div class="sensor-bar-fill" id="condBar" style="width: 25%;"></div>
+                </div>
+                <div class="sensor-footer">
+                    <span>0 µS/cm</span>
+                    <span>Agua de Red (80 — 250)</span>
+                    <span>2.000 µS/cm</span>
+                </div>
+            </div>
+
+            <!-- MO Local Box -->
+            <div class="mo-box">
+                <div class="mo-box-header">
+                    <span class="mo-badge">Copiloto Inteligente MO (Edge Local)</span>
+                    <span id="syncBadge" style="font-size: 0.72rem; color: var(--text-sub);">SQLite: 0 pendientes</span>
+                </div>
+                <div class="mo-text" id="moText">Conectando con el Agente Local de Planta...</div>
+            </div>
+        </div>
+
+        <!-- COLUMNA 2: MANDO DIRECTO DE ACTUADORES FÍSICOS -->
+        <div class="card">
+            <div class="card-title">
+                <span>Mando de Actuadores Físicos</span>
+                <span style="font-size: 0.75rem; color: var(--text-sub);">DB11_SCADA_WRITE</span>
+            </div>
+
+            <div class="actuator-list">
+                <!-- Bomba Principal -->
+                <div class="actuator-row" id="rowBomba">
+                    <div class="actuator-info">
+                        <h4>Bomba Principal (B1)</h4>
+                        <p>Impulsión de agua cruda a módulos de tratamiento</p>
+                    </div>
+                    <div class="actuator-ctrl">
+                        <span class="status-pill" id="pillBomba">APAGADA</span>
+                        <label class="switch">
+                            <input type="checkbox" id="chkBomba" onchange="toggleActuator('bomba_principal', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Dosificador Sulfato -->
+                <div class="actuator-row" id="rowSulfato">
+                    <div class="actuator-info">
+                        <h4>Dosificador de Sulfato (B2)</h4>
+                        <p>Inyección de coagulante / floculante para clarificación</p>
+                        <span class="interlock-alert" id="alertSulfato">Interlock activo: Requiere Bomba Principal encendida</span>
+                    </div>
+                    <div class="actuator-ctrl">
+                        <span class="status-pill" id="pillSulfato">APAGADO</span>
+                        <label class="switch">
+                            <input type="checkbox" id="chkSulfato" onchange="toggleActuator('dosificador_sulfato', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Dosificador Cloro -->
+                <div class="actuator-row" id="rowCloro">
+                    <div class="actuator-info">
+                        <h4>Dosificador de Cloro (B3)</h4>
+                        <p>Inyección de oxidante y desinfección continua</p>
+                        <span class="interlock-alert" id="alertCloro">Interlock activo: Requiere Bomba Principal encendida</span>
+                    </div>
+                    <div class="actuator-ctrl">
+                        <span class="status-pill" id="pillCloro">APAGADO</span>
+                        <label class="switch">
+                            <input type="checkbox" id="chkCloro" onchange="toggleActuator('dosificador_cloro', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: auto; display: flex; flex-direction: column; gap: 0.75rem;">
+                <button type="button" class="btn-stop-all" onclick="stopAllActuators()">
+                    Parada Total de Emergencia
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <footer>
+        <span>HIDROCONTROL PTAP V2.2 &bull; AI CONTROL (RCM INDUSTRIAL SAS + INGEQUIPOS BONCA SAS)</span>
+        <span>Consola 100% Offline para Servidor Físico de Planta &bull; Puerto 1880 S7 / 1882 Edge</span>
+    </footer>
+
+    <script>
+        // Actualizar reloj
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clockTime').textContent = now.toLocaleTimeString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        let lastBombaState = false;
+
+        // Sondeo de telemetría a Node-RED (127.0.0.1:1880)
+        async function fetchTelemetry() {
+            try {
+                const res = await fetch('http://127.0.0.1:1880/api/telemetry/current');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                
+                const isPlc = data.plcConnected === true;
+                const dot = document.getElementById('plcDot');
+                const txt = document.getElementById('plcText');
+                if (isPlc) {
+                    dot.className = 'dot online';
+                    txt.textContent = 'PLC Siemens S7-1200 (Conectado)';
+                } else {
+                    dot.className = 'dot offline';
+                    txt.textContent = 'PLC Siemens S7-1200 (Desconectado)';
+                }
+
+                if (data.values) {
+                    const v = data.values;
+                    const ph = Number(v.ph_agua_cruda || v.ph_agua_tratada || 7.0);
+                    const turb = Number(v.turbidez_agua_cruda || v.turbidez_agua_tratada || 0.8);
+                    const cond = Number(v.conductividad_agua_cruda || v.conductividad_agua_tratada || 95);
+
+                    document.getElementById('phVal').textContent = ph.toFixed(2);
+                    document.getElementById('turbVal').textContent = turb.toFixed(1);
+                    document.getElementById('condVal').textContent = Math.round(cond);
+
+                    // Barras
+                    const phPct = Math.max(0, Math.min(100, ((ph - 4.0) / 6.0) * 100));
+                    document.getElementById('phBar').style.width = phPct + '%';
+
+                    const turbPct = Math.max(0, Math.min(100, (turb / 100.0) * 100));
+                    document.getElementById('turbBar').style.width = turbPct + '%';
+
+                    const condPct = Math.max(0, Math.min(100, (cond / 2000.0) * 100));
+                    document.getElementById('condBar').style.width = condPct + '%';
+
+                    // Estados de actuadores
+                    const bOn = Boolean(v.bomba_principal_estado);
+                    const sOn = Boolean(v.dosificador_sulfato_estado);
+                    const cOn = Boolean(v.dosificador_cloro_estado);
+
+                    lastBombaState = bOn;
+
+                    updateActuatorUI('Bomba', bOn);
+                    updateActuatorUI('Sulfato', sOn);
+                    updateActuatorUI('Cloro', cOn);
+
+                    // Alertas interlock
+                    document.getElementById('alertSulfato').className = 'interlock-alert' + (!bOn ? ' visible' : '');
+                    document.getElementById('alertCloro').className = 'interlock-alert' + (!bOn ? ' visible' : '');
+                }
+            } catch (e) {
+                document.getElementById('plcDot').className = 'dot offline';
+                document.getElementById('plcText').textContent = 'Node-RED no responde';
+            }
+        }
+
+        function updateActuatorUI(name, isOn) {
+            const row = document.getElementById('row' + name);
+            const pill = document.getElementById('pill' + name);
+            const chk = document.getElementById('chk' + name);
+
+            if (row) row.className = 'actuator-row' + (isOn ? ' active' : '');
+            if (pill) {
+                pill.className = 'status-pill' + (isOn ? ' on' : '');
+                pill.textContent = isOn ? (name === 'Bomba' ? 'EN MARCHA' : 'DOSIFICANDO') : 'APAGADO';
+            }
+            if (chk && chk !== document.activeElement) {
+                chk.checked = isOn;
+            }
+        }
+
+        // Envío de mandos a Node-RED (127.0.0.1:1880)
+        async function toggleActuator(target, isStart) {
+            const cmd = isStart ? 'start' : 'stop';
+            try {
+                const res = await fetch('http://127.0.0.1:1880/api/control/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target: target,
+                        command: cmd,
+                        actuator: target,
+                        action: cmd,
+                        source: 'LOCAL_SERVER_CONSOLE'
+                    })
+                });
+                if (!res.ok) console.warn('Comando rechazado por Node-RED');
+            } catch (e) {
+                alert('No se pudo enviar el comando. Verifique que Node-RED esté en ejecución en el servidor.');
+            }
+            setTimeout(fetchTelemetry, 300);
+        }
+
+        async function stopAllActuators() {
+            await toggleActuator('dosificador_sulfato', false);
+            await toggleActuator('dosificador_cloro', false);
+            await toggleActuator('bomba_principal', false);
+        }
+
+        // Consultar estado de MO Local (127.0.0.1:1882)
+        async function fetchMoStatus() {
+            try {
+                const res = await fetch('http://127.0.0.1:1882/api/edge/status');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('syncBadge').textContent = 'SQLite: ' + (data.pendingSyncCount || 0) + ' pendientes';
+                    if (data.recentEvents && data.recentEvents.length > 0) {
+                        document.getElementById('moText').textContent = data.recentEvents[data.recentEvents.length - 1];
+                    } else {
+                        document.getElementById('moText').textContent = 'MO: Supervisión nominal en planta. Parámetros estables.';
+                    }
+                }
+            } catch {}
+        }
+
+        setInterval(fetchTelemetry, 800);
+        setInterval(fetchMoStatus, 1500);
+        fetchTelemetry();
+        fetchMoStatus();
+    </script>
+</body>
+</html>

@@ -272,7 +272,7 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
         }
     }
 
-    public async Task<NotificationWhatsApp?> AddNotificationWhatsAppAsync(string phone, string? name, string? apiKey, CancellationToken cancellationToken = default)
+    public async Task<NotificationWhatsApp?> AddNotificationWhatsAppAsync(string phone, string? name, string? apiKey = null, CancellationToken cancellationToken = default)
     {
         if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
         {
@@ -314,9 +314,24 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
 
     public async Task<bool> SendTestWhatsAppAsync(string? phone = null, string? name = null, CancellationToken cancellationToken = default)
     {
-        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
+        try
         {
-            return true;
+            var targetPhone = !string.IsNullOrWhiteSpace(phone) ? phone : "+573001234567";
+            var clientName = !string.IsNullOrWhiteSpace(name) ? name : "Operador";
+
+            // Intento directo con el Gateway local de WhatsApp (Puerto 5089)
+            using var localWaClient = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            var payload = new
+            {
+                phone = targetPhone,
+                message = $"🔔 *HIDROCONTROL PTAP — AI CONTROL*\n\nHola *{clientName}*, bienvenido a la supervisión inteligente de planta.\n\nTu dispositivo ha sido vinculado exitosamente. Recibirás en tiempo real las alertas de calidad de agua y los reportes de contingencia de *MO*."
+            };
+            var res = await localWaClient.PostAsJsonAsync("http://localhost:5089/send", payload, cancellationToken);
+            if (res.IsSuccessStatusCode) return true;
+        }
+        catch
+        {
+            // Continuar con fallback
         }
 
         try
@@ -328,6 +343,39 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
         catch
         {
             return true;
+        }
+    }
+
+    public async Task<bool> SendWhatsAppMessageAsync(string message, string? phone = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var numbers = await GetNotificationWhatsAppAsync(cancellationToken);
+            var targets = new List<string>();
+            if (!string.IsNullOrWhiteSpace(phone)) targets.Add(phone);
+            foreach (var w in numbers.Where(n => n.Enabled && !string.IsNullOrWhiteSpace(n.PhoneNumber)))
+            {
+                if (!targets.Contains(w.PhoneNumber)) targets.Add(w.PhoneNumber);
+            }
+            if (targets.Count == 0) targets.Add("+573001234567");
+
+            using var localWaClient = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            bool anySuccess = false;
+            foreach (var t in targets)
+            {
+                try
+                {
+                    var payload = new { phone = t, message };
+                    var res = await localWaClient.PostAsJsonAsync("http://localhost:5089/send", payload, cancellationToken);
+                    if (res.IsSuccessStatusCode) anySuccess = true;
+                }
+                catch { }
+            }
+            return anySuccess;
+        }
+        catch
+        {
+            return false;
         }
     }
 

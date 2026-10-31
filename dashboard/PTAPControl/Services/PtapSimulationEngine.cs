@@ -64,7 +64,7 @@ public sealed class PtapSimulationEngine
         InitializeFullHistory();
 
         // Muestreador continuo en segundo plano cada 2 segundos
-        _backgroundTimer = new Timer(OnBackgroundTick, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
+        _backgroundTimer = new Timer(OnBackgroundTick, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
     }
 
     private void OnBackgroundTick(object? state)
@@ -145,15 +145,48 @@ public sealed class PtapSimulationEngine
             ActiveScenario = scenarioName.ToLowerInvariant();
             switch (ActiveScenario)
             {
+                case "tierra":
+                case "turbia":
                 case "low_confidence":
                 case "rain":
+                    ActiveScenario = "tierra";
                     TurbidezCrudaBase = 85.0;
-                    PhCrudaBase = 6.80;
-                    ConductividadCrudaBase = 520.0;
+                    PhCrudaBase = 6.85;
+                    ConductividadCrudaBase = 450.0;
                     PresionB1Base = 3.10;
+                    BombaPrincipalEstado = true;
+                    DosificadorSulfatoEstado = true;
+                    DosificadorCloroEstado = false;
+                    PlcEnFalla = false;
+                    break;
+                case "limon":
+                case "acida":
+                    ActiveScenario = "limon";
+                    TurbidezCrudaBase = 1.2;
+                    PhCrudaBase = 3.50;
+                    ConductividadCrudaBase = 380.0;
+                    PresionB1Base = 2.45;
+                    BombaPrincipalEstado = true;
+                    DosificadorSulfatoEstado = false;
+                    DosificadorCloroEstado = false;
+                    PlcEnFalla = false;
+                    break;
+                case "sal":
+                case "salina":
+                    ActiveScenario = "sal";
+                    TurbidezCrudaBase = 1.0;
+                    PhCrudaBase = 7.10;
+                    ConductividadCrudaBase = 1850.0;
+                    PresionB1Base = 2.45;
+                    BombaPrincipalEstado = true;
+                    DosificadorSulfatoEstado = false;
+                    DosificadorCloroEstado = false;
+                    PlcEnFalla = false;
                     break;
                 case "pump_fault":
                     BombaPrincipalEstado = false;
+                    DosificadorSulfatoEstado = false;
+                    DosificadorCloroEstado = false;
                     PlcEnFalla = true;
                     break;
                 case "chlorine_fault":
@@ -162,15 +195,17 @@ public sealed class PtapSimulationEngine
                 case "tank_empty":
                     NivelTanqueAguaCruda = false;
                     BombaPrincipalEstado = false;
+                    DosificadorSulfatoEstado = false;
+                    DosificadorCloroEstado = false;
                     break;
-                default: // normal
+                default: // normal / agua limpia
                     ActiveScenario = "normal";
-                    TurbidezCrudaBase = 18.5;
-                    PhCrudaBase = 7.25;
-                    ConductividadCrudaBase = 425.0;
+                    TurbidezCrudaBase = 0.8;
+                    PhCrudaBase = 7.20;
+                    ConductividadCrudaBase = 95.0;
                     PresionB1Base = 2.45;
                     BombaPrincipalEstado = true;
-                    DosificadorSulfatoEstado = true;
+                    DosificadorSulfatoEstado = false;
                     DosificadorCloroEstado = true;
                     NivelTanqueAguaCruda = true;
                     PlcEnFalla = false;
@@ -290,6 +325,31 @@ public sealed class PtapSimulationEngine
             double turbCruda = Math.Max(2.0, TurbidezCrudaBase + slowWave + NextGaussian(0, 0.4));
             double condCruda = Math.Max(100.0, ConductividadCrudaBase + NextGaussian(0, 2.5));
 
+            // Coordinación química inteligente en modo automático simulado
+            if (CurrentMode == PtapDataSourceMode.SimulatedAuto)
+            {
+                if (!BombaPrincipalEstado)
+                {
+                    DosificadorSulfatoEstado = false;
+                    DosificadorCloroEstado = false;
+                }
+                else
+                {
+                    if (turbCruda > 5.0)
+                    {
+                        // Turbidez alta: Activar sulfato para coagulación, pausar cloro
+                        DosificadorSulfatoEstado = true;
+                        DosificadorCloroEstado = false;
+                    }
+                    else
+                    {
+                        // Turbidez óptima: Sulfato apagado, cloro activo para desinfección continua
+                        DosificadorSulfatoEstado = false;
+                        DosificadorCloroEstado = true;
+                    }
+                }
+            }
+
             // 2. Hidráulica de Bombeo
             double caudalB1 = 0.0;
             double presionB1 = 0.0;
@@ -406,6 +466,11 @@ public sealed class PtapSimulationEngine
         }
     }
 
+    private DateTimeOffset _lastRecordedSampleTime = DateTimeOffset.MinValue;
+    private double _lastRecordedSampleTurb = -999;
+    private double _lastRecordedSamplePh = -999;
+    private double _lastRecordedSampleCond = -999;
+
     public void RecordTelemetrySample(TelemetryResponse telemetry)
     {
         if (telemetry?.Values == null || !telemetry.PlcConnected) return;
@@ -413,6 +478,26 @@ public sealed class PtapSimulationEngine
         lock (_sync)
         {
             var now = telemetry.Timestamp != default ? telemetry.Timestamp : DateTimeOffset.UtcNow;
+
+            // Filtro Deadband: evitar duplicados en memoria si no hay cambio apreciable y han pasado < 5 segundos
+            double currentTurb = GetDictDouble(telemetry.Values, "turbidez_agua_cruda");
+            double currentPh = GetDictDouble(telemetry.Values, "ph_agua_cruda");
+            double currentCond = GetDictDouble(telemetry.Values, "conductividad_agua_cruda");
+
+            bool significantChange = Math.Abs(currentTurb - _lastRecordedSampleTurb) >= 1.0 ||
+                                     Math.Abs(currentPh - _lastRecordedSamplePh) >= 0.10 ||
+                                     Math.Abs(currentCond - _lastRecordedSampleCond) >= 15.0;
+
+            if ((now - _lastRecordedSampleTime).TotalSeconds < 5.0 && !significantChange)
+            {
+                return; // Omitir muestra redundante
+            }
+
+            _lastRecordedSampleTime = now;
+            _lastRecordedSampleTurb = currentTurb;
+            _lastRecordedSamplePh = currentPh;
+            _lastRecordedSampleCond = currentCond;
+
             foreach (var (key, val) in telemetry.Values)
             {
                 if (_historyStore.TryGetValue(key, out var list))
@@ -511,6 +596,17 @@ public sealed class PtapSimulationEngine
             AddHistoryPointDirect("presion_bomba_principal", ptTime, presionB1, "bar");
             AddHistoryPointDirect("caudal_distribucion", ptTime, caudalDist, "L/min");
         }
+    }
+
+    private static double GetDictDouble(Dictionary<string, object?> dict, string key)
+    {
+        if (!dict.TryGetValue(key, out var val) || val == null) return 0.0;
+        if (val is double d) return d;
+        if (val is float f) return f;
+        if (val is decimal dec) return (double)dec;
+        if (val is int i) return i;
+        if (double.TryParse(val.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed)) return parsed;
+        return 0.0;
     }
 
     public List<QualityHistoryPoint> GetQualityHistory(string tag, int limit = 100)

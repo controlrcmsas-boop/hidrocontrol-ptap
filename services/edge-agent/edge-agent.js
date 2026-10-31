@@ -15,6 +15,14 @@ const fs = require('node:fs');
 const http = require('node:http');
 const https = require('node:https');
 
+// Manejador global para que el Agente NUNCA se detenga ante errores
+process.on('uncaughtException', (err) => {
+    console.error('   [CRITICAL] Error no capturado (Agente recuperado):', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('   [CRITICAL] Rechazo no controlado (Agente recuperado):', reason);
+});
+
 // 1. Inicialización de Base de Datos Local SQLite
 const dbDir = path.join(__dirname, '..', '..', 'database');
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
@@ -92,7 +100,9 @@ let state = {
     pendingSyncCount: 0,
     recentEvents: [],
     dryRunTrip: false,
-    policyRules: loadPolicyRules()
+    policyRules: loadPolicyRules(),
+    lastSulfateToggle: 0,
+    lastChlorineToggle: 0
 };
 
 function addEvent(msg) {
@@ -162,54 +172,148 @@ function httpGet(urlStr, timeoutMs = 2500) {
     });
 }
 
-// 6. Helper HTTP POST Comandos a Node-RED
+// 6. Helper HTTP POST Comandos a Node-RED (Blindado contra bloqueos)
 function sendCommand(actuator, action) {
     return new Promise((resolve) => {
-        const payload = JSON.stringify({ target: actuator, command: action, actuator, action, source: 'LOCAL_EDGE_AGENT' });
-        const req = http.request({
-            hostname: '127.0.0.1',
-            port: 1880,
-            path: '/api/control/command',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(payload)
-            },
-            timeout: 2000
-        }, (res) => {
-            resolve(res.statusCode === 200);
-        });
-        req.on('error', () => resolve(false));
-        req.write(payload);
-        req.end();
+        let finished = false;
+        const done = (val) => {
+            if (!finished) {
+                finished = true;
+                resolve(val);
+            }
+        };
+
+        // Timeout estricto de 2.5 segundos: Si Node-RED no responde, el agente NUNCA se cuelga
+        const timer = setTimeout(() => done(false), 2500);
+
+        try {
+            const payload = JSON.stringify({ target: actuator, command: action, actuator, action, source: 'LOCAL_EDGE_AGENT' });
+            const req = http.request({
+                hostname: '127.0.0.1',
+                port: 1880,
+                path: '/api/control/command',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(payload)
+                },
+                timeout: 2000
+            }, (res) => {
+                clearTimeout(timer);
+                done(res.statusCode === 200);
+            });
+            req.on('error', () => {
+                clearTimeout(timer);
+                done(false);
+            });
+            req.on('timeout', () => {
+                clearTimeout(timer);
+                req.destroy();
+                done(false);
+            });
+            req.write(payload);
+            req.end();
+        } catch {
+            clearTimeout(timer);
+            done(false);
+        }
+    });
+}
+
+// Helper para enviar alertas automáticas vía WhatsApp Gateway (Puerto 5089)
+function sendWhatsAppAlert(message) {
+    return new Promise((resolve) => {
+        try {
+            // Obtener número configurado en base de datos o por defecto
+            const row = db.prepare("SELECT phone FROM notification_whatsapp WHERE enabled = 1 LIMIT 1").get();
+            const targetPhone = row ? row.phone : "+573001234567";
+            
+            const payload = JSON.stringify({ phone: targetPhone, message: message });
+            const req = http.request({
+                hostname: '127.0.0.1',
+                port: 5089,
+                path: '/send',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(payload)
+                },
+                timeout: 3000
+            }, (res) => {
+                resolve(res.statusCode === 200);
+            });
+            req.on('error', () => resolve(false));
+            req.on('timeout', () => { req.destroy(); resolve(false); });
+            req.write(payload);
+            req.end();
+        } catch {
+            resolve(false);
+        }
     });
 }
 
 // 7. Watchdog de Conexión a Internet / Nube
 async function checkCloudHeartbeat() {
+    let cloudResponsive = false;
     try {
         const res = await httpGet('https://hidrocontrol.potenzia.app/', 3500);
         if (res.statusCode >= 200 && res.statusCode < 400) {
-            state.cloudOnline = true;
-            state.lastCloudHeartbeat = Date.now();
-            state.mandoActual = 'CLOUD_JEV';
-            return;
+            cloudResponsive = true;
         }
     } catch {
-        // Falla heartbeat primario
+        cloudResponsive = false;
     }
 
-    if (Date.now() - state.lastCloudHeartbeat > 15000) {
-        if (state.cloudOnline) {
-            addEvent('¡Pérdida de enlace con la Nube! Conmutando a AGENTE LOCAL OFFLINE...');
+    const now = Date.now();
+
+    if (cloudResponsive) {
+        state.lastCloudHeartbeat = now;
+
+        // Si la red acaba de volver tras una caída:
+        if (!state.cloudOnline || state.mandoActual === 'LOCAL_OFFLINE_AGENT') {
+            const durationSec = offlineStartedAt > 0 ? Math.round((now - offlineStartedAt) / 1000) : 0;
+            const countRow = db.prepare('SELECT COUNT(*) as pending FROM telemetry_history WHERE sincronizado = 0').get();
+            const pending = countRow ? countRow.pending : 0;
+
+            addEvent(`¡Internet Restablecido! Reconexión exitosa tras ${durationSec}s en modo autónomo.`);
+            addEvent(`[STORE & FORWARD] Sincronizando ${pending} registros acumulados hacia MO Nube...`);
+
+            // Reporte automático vía WhatsApp
+            const mins = Math.max(1, Math.round(durationSec / 60));
+            sendWhatsAppAlert(`🟢 *HIDROCONTROL - ENLACE RESTABLECIDO*\n\nEl servicio de internet ha regresado. Durante la desconexión, *MO Local Edge* gobernó la planta de forma autónoma durante ${mins} min.\n\nSe han sincronizado exitosamente ${pending} registros históricos a la nube.`);
         }
-        state.cloudOnline = false;
-        state.mandoActual = 'LOCAL_OFFLINE_AGENT';
+
+        state.cloudOnline = true;
+        state.mandoActual = 'CLOUD_JEV';
+        offlineStartedAt = 0;
+    } else {
+        if (now - state.lastCloudHeartbeat > 12000) {
+            if (state.cloudOnline || state.mandoActual !== 'LOCAL_OFFLINE_AGENT') {
+                offlineStartedAt = now;
+                addEvent('¡Corte de Internet detectado! MO Nube fuera de línea.');
+                addEvent('[RESILIENCIA TOTAL] MO LOCAL asume el mando autónomo de la planta en sitio.');
+            }
+            state.cloudOnline = false;
+            state.mandoActual = 'LOCAL_OFFLINE_AGENT';
+        }
     }
 }
 
 // 8. Agente IA Local Offline: Reglas de Decisión con Criterio de JEV
 async function runLocalAgent(v) {
+    // REGLA DE SEGURIDAD FISICA UNIVERSAL: Los dosificadores NUNCA operan si la bomba esta apagada
+    if (!v.bomba_principal_estado) {
+        if (v.dosificador_sulfato_estado) {
+            addEvent('Bomba apagada -> Deteniendo dosificador de sulfato por seguridad física.');
+            await sendCommand('dosificador_sulfato', 'stop');
+        }
+        if (v.dosificador_cloro_estado) {
+            addEvent('Bomba apagada -> Deteniendo dosificador de cloro por seguridad física.');
+            await sendCommand('dosificador_cloro', 'stop');
+        }
+        return;
+    }
+
     if (state.mandoActual !== 'LOCAL_OFFLINE_AGENT') return;
 
     if (state.dryRunTrip) {
@@ -217,17 +321,59 @@ async function runLocalAgent(v) {
         addEvent('Protección de marcha en seco liberada (Bypass activo para pruebas).');
     }
 
+
     // Regla de Calidad de Agua gobernada por el criterio entrenado por JEV
     const turb = v.turbidez_agua_tratada || 0;
+    const ph = v.ph_agua_tratada || 7.0;
     const highLimit = state.policyRules.turbidityHighThreshold || 5.0;
     const optLimit = state.policyRules.turbidityOptimalThreshold || 2.0;
+    const now = Date.now();
+    const minHoldMs = 12000; // Mínimo 12s para proteger motores y evitar rebote de conmutación
 
+    // LÓGICA 1: DOSIFICADOR DE SULFATO (Coagulación / Floculación ante turbidez alta)
     if (turb > highLimit && !v.dosificador_sulfato_estado) {
-        addEvent(`Turbidez alta (${turb.toFixed(1)} NTU > umbral JEV ${highLimit} NTU) -> Activando dosificador de sulfato.`);
-        await sendCommand('dosificador_sulfato', 'start');
+        if (!state.lastSulfateToggle || (now - state.lastSulfateToggle) > minHoldMs) {
+            state.lastSulfateToggle = now;
+            addEvent(`[QUÍMICA] Turbidez elevada (${turb.toFixed(1)} NTU > umbral JEV ${highLimit} NTU) -> Activando Dosificador de Sulfato.`);
+            await sendCommand('dosificador_sulfato', 'start');
+
+            if (now - lastTurbWaAlert > 30000) {
+                lastTurbWaAlert = now;
+                sendWhatsAppAlert(`⚠️ *HIDROCONTROL — ALERTA DE TURBIDEZ EN PLANTA*\n\nEl sensor detectó turbidez de ${turb.toFixed(1)} NTU (umbral: ${highLimit} NTU).\n\n*Acción de MO Local:* Activando dosificador de sulfato para coagulación de sólidos.`);
+            }
+        }
     } else if (turb <= optLimit && v.dosificador_sulfato_estado) {
-        addEvent(`Turbidez óptima (${turb.toFixed(1)} NTU <= umbral JEV ${optLimit} NTU) -> Deteniendo dosificador sulfato.`);
-        await sendCommand('dosificador_sulfato', 'stop');
+        if (!state.lastSulfateToggle || (now - state.lastSulfateToggle) > minHoldMs) {
+            state.lastSulfateToggle = now;
+            addEvent(`[QUÍMICA] Turbidez clarificada (${turb.toFixed(1)} NTU <= umbral JEV ${optLimit} NTU) -> Deteniendo Sulfato.`);
+            await sendCommand('dosificador_sulfato', 'stop');
+        }
+    }
+
+    // LÓGICA 2: DOSIFICADOR DE CLORO (Desinfección de Agua Clarificada)
+    // El cloro desinfecta activamente cuando el agua está clarificada y dentro de pH seguro
+    if (turb <= highLimit && ph >= 6.0 && ph <= 8.5) {
+        if (!v.dosificador_cloro_estado) {
+            if (!state.lastChlorineToggle || (now - state.lastChlorineToggle) > minHoldMs) {
+                state.lastChlorineToggle = now;
+                addEvent(`[DESINFECCIÓN] Agua clarificada (${turb.toFixed(1)} NTU, pH ${ph.toFixed(2)}) -> Activando Dosificador de Cloro.`);
+                await sendCommand('dosificador_cloro', 'start');
+            }
+        }
+    } else if (turb > (highLimit * 3.0) || ph < 5.5) {
+        // En turbidez masiva (tierra) o agua ácida (limón): pausar cloro para proteger calidad
+        if (v.dosificador_cloro_estado) {
+            if (!state.lastChlorineToggle || (now - state.lastChlorineToggle) > minHoldMs) {
+                state.lastChlorineToggle = now;
+                addEvent(`[SEGURIDAD] Condición anormal (Turb: ${turb.toFixed(1)} NTU, pH: ${ph.toFixed(2)}) -> Pausando Dosificador de Cloro.`);
+                await sendCommand('dosificador_cloro', 'stop');
+
+                if (ph < 5.5 && (now - lastPhWaAlert > 30000)) {
+                    lastPhWaAlert = now;
+                    sendWhatsAppAlert(`🚨 *HIDROCONTROL — ALERTA CRÍTICA DE pH EN PLANTA*\n\nEl sensor detectó una caída drástica a ${ph.toFixed(2)} pH (condición ácida corrosiva).\n\n*Acción de MO Local:* Dosificación de cloro pausada por seguridad química.`);
+                }
+            }
+        }
     }
 }
 
@@ -257,6 +403,15 @@ const edgeServer = http.createServer((req, res) => {
         res.writeHead(200);
         res.end();
         return;
+    }
+
+    if (req.method === 'GET' && (req.url === '/' || req.url === '/panel' || req.url === '/local')) {
+        const consoleHtmlPath = path.join(__dirname, '..', '..', 'Consola-Local-Servidor.html');
+        if (fs.existsSync(consoleHtmlPath)) {
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(fs.readFileSync(consoleHtmlPath, 'utf8'));
+            return;
+        }
     }
 
     if (req.method === 'GET' && req.url === '/api/edge/status') {
@@ -308,6 +463,13 @@ edgeServer.listen(1882, '0.0.0.0', () => {
     console.log('   Receptor de Políticas JEV escuchando en puerto HTTP 1882 (/api/ai/update-policy)');
 });
 
+let globalLastRecordedAt = 0;
+let offlineStartedAt = 0;
+let lastTurbWaAlert = 0;
+let lastPhWaAlert = 0;
+let lastCondWaAlert = 0;
+let globalLastRecordedValues = null;
+
 // 11. Ciclo Principal de Ejecución (Cada 5 segundos)
 async function mainLoop() {
     try {
@@ -319,29 +481,54 @@ async function mainLoop() {
             const calibrated = scaleSensorValues(res.body.values);
             state.lastTelemetry = calibrated;
 
-            const stmt = db.prepare(`
-                INSERT INTO telemetry_history (
-                    timestamp, plc_connected, ph_agua_cruda, turbidez_agua_cruda, conductividad_agua_cruda,
-                    ph_agua_tratada, turbidez_agua_tratada, conductividad_agua_tratada,
-                    bomba_principal, dosificador_sulfato, dosificador_cloro, modo_operacion, sincronizado
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `);
+            // Filtro Deadband: registrar en SQLite cada 15s si la planta está estable,
+            // o inmediatamente si ocurre un cambio en sensores o actuadores
+            const nowTime = Date.now();
+            let shouldInsert = false;
 
-            stmt.run(
-                new Date().toISOString(),
-                state.plcConnected ? 1 : 0,
-                calibrated.ph_agua_cruda || 0,
-                calibrated.turbidez_agua_cruda || 0,
-                calibrated.conductividad_agua_cruda || 0,
-                calibrated.ph_agua_tratada || 0,
-                calibrated.turbidez_agua_tratada || 0,
-                calibrated.conductividad_agua_tratada || 0,
-                calibrated.bomba_principal_estado ? 1 : 0,
-                calibrated.dosificador_sulfato_estado ? 1 : 0,
-                calibrated.dosificador_cloro_estado ? 1 : 0,
-                state.mandoActual,
-                state.cloudOnline ? 1 : 0
-            );
+            if (!globalLastRecordedValues || (nowTime - globalLastRecordedAt) >= 15000) {
+                shouldInsert = true;
+            } else {
+                const turbDelta = Math.abs((calibrated.turbidez_agua_tratada || 0) - (globalLastRecordedValues.turbidez_agua_tratada || 0));
+                const phDelta = Math.abs((calibrated.ph_agua_tratada || 0) - (globalLastRecordedValues.ph_agua_tratada || 0));
+                const condDelta = Math.abs((calibrated.conductividad_agua_tratada || 0) - (globalLastRecordedValues.conductividad_agua_tratada || 0));
+                const actChanged = calibrated.bomba_principal_estado !== globalLastRecordedValues.bomba_principal_estado ||
+                                   calibrated.dosificador_sulfato_estado !== globalLastRecordedValues.dosificador_sulfato_estado ||
+                                   calibrated.dosificador_cloro_estado !== globalLastRecordedValues.dosificador_cloro_estado;
+
+                if (turbDelta >= 1.5 || phDelta >= 0.15 || condDelta >= 15.0 || actChanged) {
+                    shouldInsert = true;
+                }
+            }
+
+            if (shouldInsert) {
+                globalLastRecordedAt = nowTime;
+                globalLastRecordedValues = { ...calibrated };
+
+                const stmt = db.prepare(`
+                    INSERT INTO telemetry_history (
+                        timestamp, plc_connected, ph_agua_cruda, turbidez_agua_cruda, conductividad_agua_cruda,
+                        ph_agua_tratada, turbidez_agua_tratada, conductividad_agua_tratada,
+                        bomba_principal, dosificador_sulfato, dosificador_cloro, modo_operacion, sincronizado
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `);
+
+                stmt.run(
+                    new Date().toISOString(),
+                    state.plcConnected ? 1 : 0,
+                    calibrated.ph_agua_cruda || 0,
+                    calibrated.turbidez_agua_cruda || 0,
+                    calibrated.conductividad_agua_cruda || 0,
+                    calibrated.ph_agua_tratada || 0,
+                    calibrated.turbidez_agua_tratada || 0,
+                    calibrated.conductividad_agua_tratada || 0,
+                    calibrated.bomba_principal_estado ? 1 : 0,
+                    calibrated.dosificador_sulfato_estado ? 1 : 0,
+                    calibrated.dosificador_cloro_estado ? 1 : 0,
+                    state.mandoActual,
+                    state.cloudOnline ? 1 : 0
+                );
+            }
 
             await runLocalAgent(calibrated);
         }

@@ -40,23 +40,45 @@
         <span class="preset-title">Escenarios de Prueba Rápidos:</span>
         <div class="preset-buttons">
             <button type="button" class="preset-btn @(CurrentScenario == "normal" ? "active" : "")" 
-                    @onclick="@(() => ApplyPreset("normal"))">
-                Operación Normal
+                    @onclick="@(() => ApplyPreset("normal"))" title="Muestra de agua potable/grifo en rango óptimo">
+                Agua Limpia / Grifo
             </button>
-            <button type="button" class="preset-btn @(CurrentScenario == "rain" ? "active" : "")" 
-                    @onclick="@(() => ApplyPreset("rain"))">
-                Alta Turbidez (85 NTU)
+            <button type="button" class="preset-btn @(CurrentScenario == "tierra" || CurrentScenario == "rain" ? "active" : "")" 
+                    @onclick="@(() => ApplyPreset("tierra"))" title="Choque de sólidos y turbidez alta (activa sulfato)">
+                Agua con Tierra
+            </button>
+            <button type="button" class="preset-btn @(CurrentScenario == "limon" ? "active" : "")" 
+                    @onclick="@(() => ApplyPreset("limon"))" title="Choque ácido: caída drástica de pH">
+                Agua con Limón
+            </button>
+            <button type="button" class="preset-btn @(CurrentScenario == "sal" ? "active" : "")" 
+                    @onclick="@(() => ApplyPreset("sal"))" title="Choque salino: alta conductividad iónica">
+                Agua con Sal
             </button>
             <button type="button" class="preset-btn @(CurrentScenario == "pump_fault" ? "active" : "")" 
-                    @onclick="@(() => ApplyPreset("pump_fault"))">
-                Falla Bomba Principal
+                    @onclick="@(() => ApplyPreset("pump_fault"))" title="Simular disparo térmico de bomba">
+                Falla Bomba
             </button>
-            <button type="button" class="preset-btn @(CurrentScenario == "chlorine_fault" ? "active" : "")" 
-                    @onclick="@(() => ApplyPreset("chlorine_fault"))">
-                Falla Dosificador Cloro
-            </button>
-            <button type="button" class="preset-btn stop" @onclick="StopAll">
+            <button type="button" class="preset-btn stop" @onclick="StopAll" title="Interlock de parada general">
                 Parada de Emergencia
+            </button>
+        </div>
+    </div>
+
+    <!-- SECCIÓN WHATSAPP SHOWROOM: Registro rápido de cliente para experiencia en vivo -->
+    <div class="showroom-wa-section">
+        <div class="showroom-wa-header">
+            <span class="preset-title">Experiencia Showroom en Vivo (WhatsApp de Cliente):</span>
+            @if (!string.IsNullOrEmpty(WaStatusMessage))
+            {
+                <span class="wa-status-pill">@WaStatusMessage</span>
+            }
+        </div>
+        <div class="showroom-wa-row">
+            <input type="tel" class="sim-input-pill" @bind="ClientPhone" placeholder="+57 Celular del Cliente (ej: +573001234567)" />
+            <input type="text" class="sim-input-pill name" @bind="ClientName" placeholder="Nombre de la Empresa o Cliente" />
+            <button type="button" class="btn-pill-action primary" @onclick="RegisterClientAndWelcomeAsync" disabled="@IsSendingWa">
+                @(IsSendingWa ? "Vinculando..." : "Vincular y Enviar Bienvenida")
             </button>
         </div>
     </div>
@@ -273,6 +295,75 @@
         gap: 0.75rem;
         width: 100%;
         box-sizing: border-box;
+    }
+
+    .showroom-wa-section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        padding: 0.85rem 1.25rem;
+        border-radius: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .showroom-wa-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .showroom-wa-row {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .sim-input-pill {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        color: #F1F5F9;
+        padding: 0.45rem 1rem;
+        border-radius: 9999px;
+        font-size: 0.82rem;
+        outline: none;
+        flex: 1;
+        min-width: 180px;
+    }
+
+    .sim-input-pill:focus {
+        border-color: #38BDF8;
+    }
+
+    .wa-status-pill {
+        font-size: 0.78rem;
+        color: #38BDF8;
+        font-weight: 500;
+    }
+
+    .btn-pill-action {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        color: #F1F5F9;
+        padding: 0.45rem 1.2rem;
+        border-radius: 9999px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-pill-action.primary {
+        background: #2585E8;
+        border-color: #2585E8;
+        color: #FFFFFF;
+    }
+
+    .btn-pill-action.primary:hover {
+        background: #1D70C9;
     }
 
     .preset-title {
@@ -505,6 +596,37 @@
     private string CurrentScenario = "normal";
     private CancellationTokenSource _cts = new();
 
+    private string ClientPhone = "";
+    private string ClientName = "";
+    private string WaStatusMessage = "";
+    private bool IsSendingWa = false;
+
+    private async Task RegisterClientAndWelcomeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ClientPhone))
+        {
+            WaStatusMessage = "Ingresa un número celular para vincular";
+            return;
+        }
+
+        IsSendingWa = true;
+        WaStatusMessage = "Vinculando con la pasarela de WhatsApp...";
+        try
+        {
+            await Api.AddNotificationWhatsAppAsync(ClientPhone, string.IsNullOrWhiteSpace(ClientName) ? "Cliente Showroom" : ClientName, null, _cts.Token);
+            var ok = await Api.SendTestWhatsAppAsync(ClientPhone, ClientName, _cts.Token);
+            WaStatusMessage = ok ? "Mensaje de bienvenida despachado al celular del cliente" : "Cliente guardado (verifique pasarela en puerto 5089)";
+        }
+        catch (Exception ex)
+        {
+            WaStatusMessage = $"Aviso: {ex.Message}";
+        }
+        finally
+        {
+            IsSendingWa = false;
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await LoadStateAsync();
@@ -550,6 +672,28 @@
         {
             await LoadStateAsync();
             StateHasChanged();
+
+            // Despacho en tiempo real al WhatsApp del cliente registrado
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    string msg = scenario switch
+                    {
+                        "tierra" => "⚠️ *HIDROCONTROL — ALERTA DE TURBIDEZ ALTA*\n\nSe detectó un incremento de turbidez a 85.0 NTU (Muestra: Agua con Tierra).\n\n*Acción de MO:* Activando dosificador de sulfato para acelerar coagulación y proteger filtros.",
+                        "limon" => "🚨 *HIDROCONTROL — ALERTA CRÍTICA DE pH*\n\nSensor detectó caída drástica a 3.50 pH (Muestra: Agua con Limón / Condición Ácida Corrosiva).\n\n*Acción de MO:* Cloración pausada preventivamente. Se requiere neutralización química.",
+                        "sal" => "⚠️ *HIDROCONTROL — ALERTA DE CONDUCTIVIDAD*\n\nConductividad elevada a 1.850 µS/cm (Muestra: Agua con Sal / Sólidos Disueltos).\n\n*Acción de MO:* Alta presencia de iones. Se recomienda purga y revisión de afluente.",
+                        "normal" => "✅ *HIDROCONTROL — CALIDAD RESTABLECIDA*\n\nParámetros en rango óptimo de potabilidad (pH: 7.20, Turbidez: 0.8 NTU, Conductividad: 95 µS/cm).\n\n*Acción de MO:* Dosificador de cloro activo en desinfección continua.",
+                        _ => string.Empty
+                    };
+
+                    if (!string.IsNullOrEmpty(msg))
+                    {
+                        await Api.SendWhatsAppMessageAsync(msg, ClientPhone);
+                    }
+                }
+                catch { }
+            });
         }
     }
 

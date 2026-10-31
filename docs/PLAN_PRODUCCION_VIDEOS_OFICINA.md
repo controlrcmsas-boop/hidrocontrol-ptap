@@ -29,6 +29,23 @@ Este plan está calibrado para generar clips individuales de **10 a 12 segundos*
 │   • Clip 8 (10s): Adaptabilidad Universal: Pequeños y Grandes Procesos │
 │   • Clip 9 (10s): Integración con tu Maquinaria y Sensores Actuales    │
 │   • Clip 10 (10s): Cierre de Ingeniería: Soluciones a Tu Medida        │
+├────────────────────────────────────────────────────────────────────────┤
+│ BLOQUE 5: EL ORIGEN, LA ALIANZA Y LAS EMPRESAS (AI CONTROL)            │
+│   • Clip 11 (10s): HIDROCONTROL respaldado por AI CONTROL              │
+│   • Clip 12 (10s): AI CONTROL: Alianza Estratégica RCM + INGEQUIPOS    │
+│   • Clip 13 (10s): RCM INDUSTRIAL SAS: Más de 15 años en Maquinaria    │
+│   • Clip 14 (10s): INGEQUIPOS BONCA SAS: Más de 15 años en Bombeo      │
+├────────────────────────────────────────────────────────────────────────┤
+│ BLOQUE 6: EL EQUIPO DE INGENIERÍA MECATRÓNICA (4 DIRECTORES)           │
+│   • Clip 15 (10s): 4 Ingenieros Mecatrónicos: Sinergia de Especialistas│
+│   • Clip 16 (10s): Ing. Juan Pablo Benítez: Dirección Técnica en Sitio │
+│   • Clip 17 (10s): Ing. Francisco Pérez: Dirección de Proyectos e Ing. │
+│   • Clip 18 (10s): Ing. Jorge Bonilla: Dirección Comercial y Negocios  │
+│   • Clip 19 (10s): Ing. Sandra Cardozo: Innovación, Software e IA      │
+├────────────────────────────────────────────────────────────────────────┤
+│ BLOQUE 7: PROPUESTA DE VALOR Y CONFIANZA TOTAL                         │
+│   • Clip 20 (10s): De la Nube al Piso de Planta: Capacidad Integral    │
+│   • Clip 21 (10s): Cierre Institucional: Ingeniería que Resuelve       │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -142,6 +159,120 @@ Este plan está calibrado para generar clips individuales de **10 a 12 segundos*
 * **Locución (16 palabras):**  
   > *"Soluciones reales de ingeniería diseñadas a la medida de tu proceso. Consulta hoy con nuestro equipo técnico."*
 * **Texto en Pantalla:** `HIDROCONTROL | Automatización e Ingeniería a tu Medida`
+
+---
+
+# Bloque Corporativo: AI CONTROL, Empresas Aliadas y Equipo Directivo
+
+---
+
+### CLIP 11: Respaldado por AI CONTROL
+* **Objetivo:** Posicionar a AI CONTROL como la fuerza de desarrollo tecnológico e integración detrás de HIDROCONTROL.
+* **Prompt Visual:**  
+  *Animación sobria y de alta tecnología donde el isotipo de HIDROCONTROL se enlaza con la identidad de AI CONTROL sobre un fondo de circuitos industriales y pantallas de telemetría activa.*
+* **Locución (16 palabras):**  
+  > *"HIDROCONTROL es un desarrollo exclusivo de AI CONTROL, uniendo automatización avanzada e inteligencia para la industria."*
+* **Texto en Pantalla:** `HIDROCONTROL | Desarrollado por AI CONTROL`
+
+---
+
+### CLIP 12: AI CONTROL: Alianza Estratégica de Ingeniería
+* **Objetivo:** Explicar con prestigio corporativo que AI CONTROL es la alianza sinérgica entre dos empresas consolidadas.
+* **Prompt Visual:**  
+  *Transición elegante entre los sellos corporativos de RCM INDUSTRIAL SAS e INGEQUIPOS BONCA SAS, convergiendo hacia el centro de diseño y control de AI CONTROL.*
+* **Locución (17 palabras):**  
+  > *"AI CONTROL nace de la alianza estratégica entre dos empresas consolidadas: RCM INDUSTRIAL SAS e INGEQUIPOS BONCA SAS."*
+* **Texto en Pantalla:** `AI CONTROL | Alianza Estratégica: RCM INDUSTRIAL SAS + INGEQUIPOS BONCA SAS`
+
+---
+
+### CLIP 13: RCM INDUSTRIAL SAS: Trayectoria y Maquinaria
+* **Objetivo:** Presentar la experiencia de RCM INDUSTRIAL SAS (anteriormente RCMaq SAS) en maquinaria y plantas industriales.
+* **Prompt Visual:**  
+  *Tomas técnicas e imponentes de plantas de asfalto y maquinaria pesada de proceso continuo en operación, con especialistas realizando mantenimiento electromecánico y automatización de precisión.*
+* **Locución (17 palabras):**  
+  > *"RCM INDUSTRIAL SAS suma más de quince años liderando el mantenimiento y automatización de maquinaria y plantas industriales."*
+* **Texto en Pantalla:** `RCM INDUSTRIAL SAS | +15 Años de Experiencia | Automatización y Maquinaria Industrial`
+
+---
+
+### CLIP 14: INGEQUIPOS BONCA SAS: Líderes en Sistemas de Bombeo
+* **Objetivo:** Mostrar el liderazgo y especialidad comprobada de INGEQUIPOS BONCA SAS en dinámica de fluidos y bombeo.
+* **Prompt Visual:**  
+  *Cuarto de bombas industriales de gran caudal, manómetros de precisión, tuberías hidráulicas y tableros de potencia trabajando impecablemente con fluidos a presión.*
+* **Locución (17 palabras):**  
+  > *"INGEQUIPOS BONCA SAS cuenta con más de quince años de trayectoria especializada en ingeniería de sistemas de bombeo."*
+* **Texto en Pantalla:** `INGEQUIPOS BONCA SAS | +15 Años de Experiencia | Ingeniería en Sistemas de Bombeo`
+
+---
+
+### CLIP 15: Equipo Directivo: 4 Ingenieros Mecatrónicos
+* **Objetivo:** Presentar el núcleo de ingeniería: 4 ingenieros mecatrónicos con más de 15 a 20 años de trayectoria con fortalezas complementarias.
+* **Prompt Visual:**  
+  *Mesa de trabajo de ingeniería donde conviven planos mecánicos, esquemas de potencia eléctrica y pantallas con código SCADA e IA, transmitiendo dominio técnico 360°.*
+* **Locución (17 palabras):**  
+  > *"AI CONTROL está liderado por cuatro ingenieros mecatrónicos que integran mecánica, electrónica, control y software para tu proceso."*
+* **Texto en Pantalla:** `Equipo AI CONTROL | 4 Ingenieros Mecatrónicos | Soluciones Integrales 360°`
+
+---
+
+### CLIP 16: Ing. Juan Pablo Benítez: Dirección Técnica en Sitio
+* **Objetivo:** Destacar el liderazgo en campo, experiencia en planta y resolución en terreno del Ing. Juan Pablo Benítez.
+* **Prompt Visual:**  
+  *Ingeniero con casco y elementos de protección industrial en planta frente a maquinaria de proceso y tableros de control, revisando variables y supervisando la operación en sitio.*
+* **Locución (18 palabras):**  
+  > *"Ingeniero Juan Pablo Benítez, Director de Ingeniería en Sitio: más de veinte años resolviendo con precisión en piso de planta."*
+* **Texto en Pantalla:** `Ing. Juan Pablo Benítez | Director de Ingeniería en Sitio | +20 Años en Planta y Campo`
+
+---
+
+### CLIP 17: Ing. Francisco Pérez García: Dirección de Proyectos e Ingeniería
+* **Objetivo:** Resaltar la visión sistémica, análisis técnico y arquitectura de soluciones del Ing. Francisco Pérez García.
+* **Prompt Visual:**  
+  *Ingeniero analizando diagramas P&ID, flujo de procesos y arquitectura técnica en pantallas de ingeniería, estructurando la solución óptima para operaciones industriales continuas.*
+* **Locución (18 palabras):**  
+  > *"Ingeniero Francisco Pérez García, Director de Proyectos: más de veinte años diseñando soluciones técnicas robustas para procesos industriales complejos."*
+* **Texto en Pantalla:** `Ing. Francisco Pérez García | Director de Proyectos y Operaciones | Arquitectura de Soluciones Técnicas`
+
+---
+
+### CLIP 18: Ing. Jorge Bonilla: Dirección Comercial y Desarrollo de Negocios
+* **Objetivo:** Presentar el liderazgo del Ing. Jorge Bonilla conectando requerimientos de cliente con ingeniería hidráulica de alto nivel.
+* **Prompt Visual:**  
+  *Reunión ejecutiva y técnica con planos de proyectos de bombeo industrial, presentando propuestas de ingeniería y estructurando acuerdos comerciales de confianza.*
+* **Locución (18 palabras):**  
+  > *"Ingeniero Jorge Bonilla, CEO de INGEQUIPOS BONCA y Director Comercial: estructurando alianzas estratégicas y soluciones integrales de bombeo a tu medida."*
+* **Texto en Pantalla:** `Ing. Jorge Bonilla | CEO Ingequipos Bonca & Dir. Comercial | Desarrollo de Negocios y Bombeo`
+
+---
+
+### CLIP 19: Ing. Sandra Cardozo: Dirección de Innovación, Software e IA
+* **Objetivo:** Resaltar el liderazgo de la Ing. Sandra Cardozo en desarrollo de software, SCADA, telemetría e Inteligencia Artificial práctica.
+* **Prompt Visual:**  
+  *Ingeniera interactuando con consolas de programación avanzada, paneles SCADA web en tiempo real y modelos de analítica inteligente aplicados a controladores industriales.*
+* **Locución (18 palabras):**  
+  > *"Ingeniera Sandra Cardozo, Directora de Innovación: dieciocho años creando software avanzado, automatización y soluciones con Inteligencia Artificial aplicada a la industria."*
+* **Texto en Pantalla:** `Ing. Sandra Cardozo | Directora de Innovación, Software e IA | Automatización Inteligente`
+
+---
+
+### CLIP 20: De la Planta a la Nube: Capacidad Integral
+* **Objetivo:** Demostrar que el equipo domina desde el hardware pesado y las bombas en campo hasta el software y la nube.
+* **Prompt Visual:**  
+  *Montaje dinámico y contrastado: maquinaria industrial y bombas de gran potencia en planta, enlazándose armónicamente con servidores edge, dashboards en la nube y modelos de IA.*
+* **Locución (18 palabras):**  
+  > *"Cubrimos todo el ciclo: desde la operación en campo y sistemas de bombeo, hasta automatización avanzada e inteligencia artificial."*
+* **Texto en Pantalla:** `Capacidad Integral | Del Piso de Planta a la Nube y la Inteligencia Artificial`
+
+---
+
+### CLIP 21: Cierre Institucional: Soluciones Reales de Ingeniería
+* **Objetivo:** Cierre de ventas contundente y confiable, reforzando la trayectoria real y la disposición del equipo.
+* **Prompt Visual:**  
+  *Pantalla final corporativa con los logos de AI CONTROL, RCM INDUSTRIAL SAS e INGEQUIPOS BONCA SAS junto al isotipo de HIDROCONTROL, con datos de contacto técnico.*
+* **Locución (16 palabras):**  
+  > *"Ingeniería real respaldada por más de quince años de trayectoria. Confiabilidad absoluta para transformar tu planta."*
+* **Texto en Pantalla:** `AI CONTROL | RCM INDUSTRIAL + INGEQUIPOS BONCA | Tu Aliado en Automatización`
 
 ---
 

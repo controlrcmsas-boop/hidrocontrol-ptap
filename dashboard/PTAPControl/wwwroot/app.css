@@ -3855,3 +3855,62 @@ h2 {
     box-shadow: 0 0 14px rgba(56, 189, 248, 0.7) !important;
     animation: alarmPulse 1.8s infinite !important;
 }
+
+/* MO Live Copilot Card */
+.mo-live-card {
+    border: 1px solid rgba(56, 189, 248, 0.3) !important;
+    background: linear-gradient(145deg, rgba(14, 30, 50, 0.85), rgba(10, 20, 35, 0.95)) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 0 15px rgba(56, 189, 248, 0.05);
+}
+
+.mo-badge-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.badge-mo-pill {
+    background: #38bdf8;
+    color: #0b1120;
+    font-weight: 800;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+}
+
+.mo-live-text {
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: #e2e8f0;
+    margin: 8px 0;
+    min-height: 38px;
+}
+
+.mo-meta-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.mo-meta-line small {
+    color: #64748b;
+    font-size: 0.75rem;
+}
+
+.mo-link-btn {
+    color: #38bdf8;
+    text-decoration: none;
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.mo-link-btn:hover {
+    color: #7dd3fc;
+    text-decoration: underline;
+}

@@ -202,6 +202,23 @@
                 </a>
             </section>
 
+            <section class="panel-section mo-live-card">
+                <div class="mo-badge-header">
+                    <span class="badge-mo-pill">MO</span>
+                    <h2>Copiloto Inteligente</h2>
+                </div>
+                <p class="mo-live-text">
+                    @(Telemetry?.GetString("mo_message") 
+                      ?? (Telemetry?.PlcConnected == false 
+                          ? "MO: Operación local autónoma activa en planta. Enclavamientos y dosificación gobernados en sitio sin internet." 
+                          : "MO: Supervisión nominal en planta. Parámetros estables y calidad óptima."))
+                </p>
+                <div class="mo-meta-line">
+                    <small>Fuente: @(Telemetry?.Source ?? "MO Nube")</small>
+                    <a href="analisis-ia" class="mo-link-btn">Análisis cognitivo &rarr;</a>
+                </div>
+            </section>
+
             <section class="panel-section status-box">
                 <h2>Seguridad</h2>
                 <div>

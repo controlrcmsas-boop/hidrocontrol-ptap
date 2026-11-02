@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 
 namespace PTAPControl.Models;
 
@@ -99,5 +99,25 @@ public sealed class TelemetryResponse
         }
 
         return double.TryParse(value.ToString(), out var parsed) ? parsed : null;
+    }
+
+    public string? GetString(string key)
+    {
+        if (!Values.TryGetValue(key, out var value) || value is null)
+        {
+            return null;
+        }
+
+        if (value is System.Text.Json.JsonElement element)
+        {
+            return element.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.String => element.GetString(),
+                System.Text.Json.JsonValueKind.Null => null,
+                _ => element.ToString()
+            };
+        }
+
+        return value.ToString();
     }
 }

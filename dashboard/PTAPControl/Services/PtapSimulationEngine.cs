@@ -35,7 +35,7 @@ public sealed class PtapSimulationEngine
     public double CaudalB1Base { get; set; } = 15.0;
 
     // Modo de operación y escenario (por defecto Simulador para que la interfaz responda instantáneamente)
-    public PtapDataSourceMode CurrentMode { get; set; } = PtapDataSourceMode.SimulatedAuto;
+    public PtapDataSourceMode CurrentMode { get; set; } = PtapDataSourceMode.PhysicalPlc;
     public string ActiveScenario { get; private set; } = "normal";
     public bool SimulatePlcDisconnected { get; set; } = false;
 

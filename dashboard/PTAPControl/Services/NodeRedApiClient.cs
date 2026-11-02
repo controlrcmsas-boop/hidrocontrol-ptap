@@ -126,6 +126,27 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
         }
     }
 
+    public async Task<bool> SendMoMessageAsync(string message, string source = "JEV_CLOUD", CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var request = new
+            {
+                target = "mo_message",
+                command = "update",
+                message = message,
+                source = source,
+                operator_name = "jev_ai"
+            };
+            var response = await http.PostAsJsonAsync("api/control/command", request, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public async Task<List<QualityHistoryPoint>> GetQualityHistoryAsync(string tag, int limit = 100, CancellationToken cancellationToken = default)
     {
         if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc || !_lastPlcSuccess)

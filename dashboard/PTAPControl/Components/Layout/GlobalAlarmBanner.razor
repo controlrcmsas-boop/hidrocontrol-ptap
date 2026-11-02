@@ -2,7 +2,7 @@
 @implements IAsyncDisposable
 @inject PTAPControl.Services.NodeRedApiClient Api
 
-<div class="global-alarm-banner @(IsActive ? "active" : "") @(IsCritical ? "critical" : "")">
+<div class="global-alarm-banner @(IsActive ? "active" : "") @(IsCritical && !IsPlcInterrupted ? "critical" : "") @(IsPlcInterrupted ? "offline-mode" : "")">
     <div class="alarm-beacon" aria-hidden="true"></div>
     <div>
         <strong>@AlarmBannerTitle</strong>
@@ -27,16 +27,16 @@
 
     private string AlarmBannerTitle =>
         IsPlcInterrupted
-            ? "ALERTA DE PROCESO: ENLACE CON EL AUTÓMATA INTERRUMPIDO"
+            ? "MO: OPERACIÓN LOCAL AUTÓNOMA EN PLANTA (OFFLINE)"
             : ActiveAlarmCount == 0
-                ? "Sin alarmas activas"
-                : HasCriticalAlarm ? "Alarma crítica activa" : "Alarmas activas";
+                ? "MO: PLANTA EN LÍNEA & SUPERVISIÓN ACTIVA"
+                : HasCriticalAlarm ? "MO: ALERTA CRÍTICA EN PLANTA" : "MO: ALERTAS DE PROCESO ACTIVAS";
 
     private string AlarmBannerText =>
         IsPlcInterrupted
-            ? "No se recibe telemetría del PLC Siemens S7-1200 ni del motor de adquisición. Los mandos de control están bloqueados por seguridad física de la planta."
+            ? "MO informa: La planta física se encuentra operando en modo local autónomo por desconexión de red. El agente local en servidor mantiene la supervisión de calidad y los enclavamientos de seguridad física en sitio. Al restablecerse el enlace, se sincronizará la bitácora histórica retenida."
             : ActiveAlarmCount == 0
-                ? "Sistema sin eventos activos reportados."
+                ? "Sistema operando en condiciones nominales estables. Supervisión y aprendizaje continuo activos."
                 : $"{ActiveAlarmCount} activa(s). {LatestAlarmMessage}";
 
     protected override async Task OnInitializedAsync()

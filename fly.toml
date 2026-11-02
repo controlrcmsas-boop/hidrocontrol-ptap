@@ -16,7 +16,6 @@ primary_region = 'iad'
   NodeRed__BaseUrl = 'https://desktop-u8frjng.tail82f1e5.ts.net/'
   NODERED_BASE_URL = 'https://desktop-u8frjng.tail82f1e5.ts.net/'
 
-
 [mounts]
   source = 'hidrocontrol_data'
   destination = '/data'
@@ -26,10 +25,10 @@ primary_region = 'iad'
   force_https = false
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
   processes = ['app']
 
 [[vm]]
-  memory = '1gb'
+  memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1

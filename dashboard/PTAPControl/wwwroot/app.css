@@ -3832,3 +3832,26 @@ h2 {
 }
 
 
+
+/* Modo Respaldo Offline Autonomo gobernado por MO */
+.global-alarm-banner.offline-mode {
+    border-color: rgba(56, 189, 248, 0.45) !important;
+    background: rgba(14, 30, 50, 0.92) !important;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.2) !important;
+    animation: none !important;
+}
+
+.global-alarm-banner.offline-mode strong {
+    color: #38bdf8 !important;
+}
+
+.global-alarm-banner.offline-mode span {
+    color: #cbd5e1 !important;
+}
+
+.global-alarm-banner.offline-mode .alarm-beacon {
+    border-color: rgba(56, 189, 248, 0.8) !important;
+    background: #38bdf8 !important;
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.7) !important;
+    animation: alarmPulse 1.8s infinite !important;
+}

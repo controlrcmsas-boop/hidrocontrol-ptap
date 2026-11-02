@@ -14,6 +14,10 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
     private static DateTimeOffset _lastPlcAttempt = DateTimeOffset.MinValue;
     private static bool _lastPlcSuccess = false;
     private static TelemetryResponse? _lastPlcTelemetry = null;
+    private static int _consecutiveFailures = 0;
+    private const int MaxFailuresBeforeOffline = 3;
+    private static string? _lastKnownMoMessage = null;
+    private static string? _lastKnownMoSource = null;
     private static readonly TimeSpan PlcRetryInterval = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan FastHttpTimeout = TimeSpan.FromSeconds(4);
 
@@ -31,7 +35,7 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
 
         // Modo PLC Activo: Si el último intento falló recientemente, devolvemos el estado sin bloquear el circuito Blazor
         var now = DateTimeOffset.UtcNow;
-        if (!_lastPlcSuccess && (now - _lastPlcAttempt) < PlcRetryInterval)
+        if (!_lastPlcSuccess && _consecutiveFailures >= MaxFailuresBeforeOffline && (now - _lastPlcAttempt) < PlcRetryInterval)
         {
             return _lastPlcTelemetry ?? new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
         }
@@ -46,31 +50,63 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
             var response = await http.GetAsync("api/telemetry/current", cts.Token);
             if (response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
             {
-                _lastPlcSuccess = false;
-                _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
-                return _lastPlcTelemetry;
+                _consecutiveFailures++;
+                if (_consecutiveFailures >= MaxFailuresBeforeOffline)
+                {
+                    _lastPlcSuccess = false;
+                    _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow, Source = "OFFLINE_LOCAL" };
+                }
+                return _lastPlcTelemetry ?? new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
             }
 
             response.EnsureSuccessStatusCode();
             var telemetry = await response.Content.ReadFromJsonAsync<TelemetryResponse>(cts.Token);
             if (telemetry is not null)
             {
+                _consecutiveFailures = 0;
                 _lastPlcSuccess = telemetry.PlcConnected;
+
+                // Estabilidad SCADA: si el paquete no incluye mo_message pero teníamos uno previo válido, preservarlo
+                if (telemetry.Values.TryGetValue("mo_message", out var msgObj) && msgObj is not null && !string.IsNullOrWhiteSpace(msgObj.ToString()))
+                {
+                    _lastKnownMoMessage = msgObj.ToString();
+                    if (telemetry.Values.TryGetValue("mo_source", out var srcObj) && srcObj is not null)
+                    {
+                        _lastKnownMoSource = srcObj.ToString();
+                    }
+                }
+                else if (_lastKnownMoMessage is not null)
+                {
+                    telemetry.Values["mo_message"] = _lastKnownMoMessage;
+                    if (_lastKnownMoSource is not null)
+                    {
+                        telemetry.Values["mo_source"] = _lastKnownMoSource;
+                    }
+                }
+
                 _lastPlcTelemetry = telemetry;
                 simulationEngine.RecordTelemetrySample(telemetry);
                 return telemetry;
             }
 
-            _lastPlcSuccess = false;
-            _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
-            return _lastPlcTelemetry;
+            _consecutiveFailures++;
+            if (_consecutiveFailures >= MaxFailuresBeforeOffline)
+            {
+                _lastPlcSuccess = false;
+                _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow, Source = "OFFLINE_LOCAL" };
+            }
+            return _lastPlcTelemetry ?? new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
         }
         catch
         {
-            // El PLC/Node-RED está apagado en oficina; mantenemos intentos periódicos sin ralentizar la app
-            _lastPlcSuccess = false;
-            _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
-            return _lastPlcTelemetry;
+            // Filtro de histéresis ante jitter de red: no declarar offline en un único paquete perdido
+            _consecutiveFailures++;
+            if (_consecutiveFailures >= MaxFailuresBeforeOffline)
+            {
+                _lastPlcSuccess = false;
+                _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow, Source = "OFFLINE_LOCAL" };
+            }
+            return _lastPlcTelemetry ?? new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
         }
     }
 

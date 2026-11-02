@@ -208,13 +208,10 @@
                     <h2>Copiloto Inteligente</h2>
                 </div>
                 <p class="mo-live-text">
-                    @(Telemetry?.GetString("mo_message") 
-                      ?? (Telemetry?.PlcConnected == false 
-                          ? "MO: Operación local autónoma activa en planta. Enclavamientos y dosificación gobernados en sitio sin internet." 
-                          : "MO: Supervisión nominal en planta. Parámetros estables y calidad óptima."))
+                    @GetDisplayMoMessage()
                 </p>
                 <div class="mo-meta-line">
-                    <small>Fuente: @(Telemetry?.Source ?? "MO Nube")</small>
+                    <small>Fuente: @GetDisplayMoSource()</small>
                     <a href="analisis-ia" class="mo-link-btn">Análisis cognitivo &rarr;</a>
                 </div>
             </section>
@@ -260,6 +257,47 @@
     private CancellationTokenSource? cts;
     private bool _showTreatedMenu = false;
     private string? _activeEquipment = null;
+    private string? _cachedMoMessage = null;
+    private string? _cachedMoSource = null;
+
+    private string GetDisplayMoMessage()
+    {
+        var liveMsg = Telemetry?.GetString("mo_message");
+        if (!string.IsNullOrWhiteSpace(liveMsg))
+        {
+            _cachedMoMessage = liveMsg;
+            return liveMsg;
+        }
+
+        if (Telemetry?.PlcConnected == false)
+        {
+            return "MO: Operación local autónoma activa en planta. Enclavamientos y dosificación gobernados en sitio sin internet.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(_cachedMoMessage))
+        {
+            return _cachedMoMessage;
+        }
+
+        return "MO: Supervisión nominal en planta. Parámetros estables y calidad óptima.";
+    }
+
+    private string GetDisplayMoSource()
+    {
+        var src = Telemetry?.GetString("mo_source") ?? Telemetry?.Source;
+        if (!string.IsNullOrWhiteSpace(src))
+        {
+            _cachedMoSource = src;
+            return src;
+        }
+
+        if (Telemetry?.PlcConnected == false)
+        {
+            return "MO Local (Offline)";
+        }
+
+        return _cachedMoSource ?? "MO Nube";
+    }
 
     private void ToggleTreatedMenu() => _showTreatedMenu = !_showTreatedMenu;
     private void ToggleEquipment(string id) => _activeEquipment = _activeEquipment == id ? null : id;

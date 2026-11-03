@@ -306,7 +306,7 @@
     {
         cts = new CancellationTokenSource();
         await RefreshAsync();
-        timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
         _ = RefreshLoopAsync(cts.Token);
     }
 

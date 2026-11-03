@@ -127,7 +127,7 @@ builder.Services.AddHttpClient<NodeRedApiClient>(client =>
                   ?? builder.Configuration["NodeRed:BaseUrl"]
                   ?? "http://localhost:1880/";
     client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(5);
+    client.Timeout = TimeSpan.FromSeconds(12);
 });
 
 // ─── Servicios del sistema PTAP ───────────────────────────────────────────────

@@ -19,7 +19,7 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
     private static string? _lastKnownMoMessage = null;
     private static string? _lastKnownMoSource = null;
     private static readonly TimeSpan PlcRetryInterval = TimeSpan.FromSeconds(3);
-    private static readonly TimeSpan FastHttpTimeout = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan FastHttpTimeout = TimeSpan.FromSeconds(10);
 
     public bool IsPlcOnline => _lastPlcSuccess;
 

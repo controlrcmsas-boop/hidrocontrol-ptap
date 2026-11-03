@@ -84,6 +84,7 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
                     }
                 }
 
+                EvaluateAndDispatchJevMessage(telemetry);
                 _lastPlcTelemetry = telemetry;
                 simulationEngine.RecordTelemetrySample(telemetry);
                 return telemetry;
@@ -159,6 +160,80 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
                 Error = $"Error de comunicación con Node-RED (Planta Remota): {ex.Message}",
                 Timestamp = DateTimeOffset.UtcNow
             };
+        }
+    }
+
+    private static string _lastEvaluatedCondition = string.Empty;
+    private static DateTimeOffset _lastMoDispatchTime = DateTimeOffset.MinValue;
+
+    private void EvaluateAndDispatchJevMessage(TelemetryResponse telemetry)
+    {
+        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc) return;
+        if (!telemetry.PlcConnected) return;
+
+        var turb = telemetry.GetNumber("turbidez_agua_tratada") ?? telemetry.GetNumber("turbidez_agua_cruda") ?? 0.0;
+        var ph = telemetry.GetNumber("ph_agua_tratada") ?? telemetry.GetNumber("ph_agua_cruda") ?? 7.0;
+        var cond = telemetry.GetNumber("conductividad_agua_tratada") ?? telemetry.GetNumber("conductividad_agua_cruda") ?? 0.0;
+        var bombaOn = telemetry.GetBool("bomba_principal_estado");
+
+        string currentCondition;
+        string targetMessage;
+
+        if (!bombaOn)
+        {
+            currentCondition = "PUMP_OFF";
+            targetMessage = "MO: PLANTA EN ESPERA. BOMBA DETENIDA. SISTEMA EN REPOSO Y SEGURIDAD FISICA ACTIVA.";
+        }
+        else if (turb > 5.0)
+        {
+            currentCondition = "HIGH_TURBIDITY";
+            targetMessage = $"MO: ALERTA TURBIDEZ {turb:F1} NTU. COAGULACION CON SULFATO FH-201 PARA REMOCION Y CLARIFICACION.";
+        }
+        else if (ph < 5.5)
+        {
+            currentCondition = "ACIDIC_PH";
+            targetMessage = $"MO: ALERTA pH ACIDO {ph:F2}. CLORACION PAUSADA PREVENTIVAMENTE POR SEGURIDAD QUIMICA.";
+        }
+        else if (ph > 8.5)
+        {
+            currentCondition = "ALKALINE_PH";
+            targetMessage = $"MO: ALERTA pH ALCALINO {ph:F2}. AJUSTE QUIMICO REQUERIDO PARA CUMPLIR NORMA POTABLE.";
+        }
+        else if (cond > 1000.0)
+        {
+            currentCondition = "HIGH_CONDUCTIVITY";
+            targetMessage = $"MO: ALERTA CONDUCTIVIDAD {cond:F0} uS/cm. INTRUSION DE SALES DETECTADA EN AFLUENTE.";
+        }
+        else
+        {
+            currentCondition = "NOMINAL";
+            targetMessage = "MO: AGUA CLARIFICADA DENTRO DE NORMA POTABLE. DESINFECCION CONTINUA ACTIVA Y REMOCION OPTIMA.";
+        }
+
+        var currentMsg = telemetry.GetString("mo_message") ?? string.Empty;
+        var now = DateTimeOffset.UtcNow;
+
+        bool needsUpdate = (currentCondition != _lastEvaluatedCondition) 
+                        || (!currentMsg.StartsWith("MO: ALERTA") && currentCondition != "NOMINAL" && currentCondition != "PUMP_OFF")
+                        || (currentCondition == "NOMINAL" && (currentMsg.Contains("restablecida") || currentMsg.Contains("SUPERVISION NOMINAL")));
+
+        if (needsUpdate && (now - _lastMoDispatchTime) > TimeSpan.FromSeconds(3))
+        {
+            _lastEvaluatedCondition = currentCondition;
+            _lastMoDispatchTime = now;
+            _lastKnownMoMessage = targetMessage;
+            _lastKnownMoSource = "JEV_CLOUD";
+            telemetry.Values["mo_message"] = targetMessage;
+            telemetry.Values["mo_source"] = "JEV_CLOUD";
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await SendMoMessageAsync(targetMessage, "JEV_CLOUD");
+                }
+                catch { }
+            });
         }
     }
 

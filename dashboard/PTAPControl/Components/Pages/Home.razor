@@ -17,9 +17,6 @@
         <TopUserNav />
     </header>
 
-    <div class="home-alarm-slot">
-        <GlobalAlarmBanner PlcConnected="@Telemetry?.PlcConnected" />
-    </div>
 
     @if (!string.IsNullOrWhiteSpace(ErrorMessage))
     {
@@ -202,17 +199,26 @@
                 </a>
             </section>
 
-            <section class="panel-section mo-live-card">
+            <section class="panel-section mo-live-card @(HasActiveProcessAlarms ? "mo-card-alarm" : "")">
                 <div class="mo-badge-header">
-                    <span class="badge-mo-pill">MO</span>
+                    <span class="badge-mo-pill @(HasActiveProcessAlarms ? "alarm" : "")">
+                        @(HasActiveProcessAlarms ? "MO: ALERTA" : "MO")
+                    </span>
                     <h2>Master Operator (Operador Maestro)</h2>
                 </div>
-                <p class="mo-live-text">
+                <p class="mo-live-text @(HasActiveProcessAlarms ? "text-alarm" : "")">
                     @GetDisplayMoMessage()
                 </p>
                 <div class="mo-meta-line">
                     <small>Fuente: @GetDisplayMoSource()</small>
-                    <a href="analisis-ia" class="mo-link-btn">Análisis cognitivo &rarr;</a>
+                    @if (HasActiveProcessAlarms)
+                    {
+                        <a href="alarmas" class="mo-link-btn alarm-link">Ver @ActiveProcessAlarmCount alarma(s) &rarr;</a>
+                    }
+                    else
+                    {
+                        <a href="analisis-ia" class="mo-link-btn">Análisis cognitivo &rarr;</a>
+                    }
                 </div>
             </section>
 
@@ -259,27 +265,37 @@
     private string? _activeEquipment = null;
     private string? _cachedMoMessage = null;
     private string? _cachedMoSource = null;
+    private List<AlarmEvent> _activeAlarms = new();
+    private bool HasActiveProcessAlarms => _activeAlarms.Any(a => a.TagId != "enlace_servidor");
+    private int ActiveProcessAlarmCount => _activeAlarms.Count(a => a.TagId != "enlace_servidor");
 
     private string GetDisplayMoMessage()
     {
-        var liveMsg = Telemetry?.GetString("mo_message");
-        if (!string.IsNullOrWhiteSpace(liveMsg))
-        {
-            _cachedMoMessage = liveMsg;
-            return liveMsg;
-        }
-
         if (Telemetry?.PlcConnected == false)
         {
             return "MO: Operación local autónoma activa en planta. Enclavamientos y dosificación gobernados en sitio sin internet.";
         }
 
-        if (!string.IsNullOrWhiteSpace(_cachedMoMessage))
+        var processAlarms = _activeAlarms.Where(a => a.TagId != "enlace_servidor").ToList();
+        if (processAlarms.Count > 0)
+        {
+            var summary = string.Join(" | ", processAlarms.Select(a => a.Message));
+            return $"MO: ALERTA DE PROCESO ACTIVA ({processAlarms.Count}). {summary}. Mitigación y dosificación química requerida.";
+        }
+
+        var liveMsg = Telemetry?.GetString("mo_message");
+        if (!string.IsNullOrWhiteSpace(liveMsg) && !liveMsg.Contains("ALERTA"))
+        {
+            _cachedMoMessage = liveMsg;
+            return liveMsg;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_cachedMoMessage) && !_cachedMoMessage.Contains("ALERTA"))
         {
             return _cachedMoMessage;
         }
 
-        return "MO: Supervisión nominal en planta. Parámetros estables y calidad óptima.";
+        return "MO: Supervisión nominal en planta. Calidad del agua dentro de norma potable.";
     }
 
     private string GetDisplayMoSource()
@@ -332,6 +348,7 @@
         try
         {
             Telemetry = await Api.GetCurrentTelemetryAsync(cts?.Token ?? CancellationToken.None);
+            _activeAlarms = await Api.GetActiveAlarmsAsync(cts?.Token ?? CancellationToken.None);
             ErrorMessage = null;
         }
         catch (Exception ex)

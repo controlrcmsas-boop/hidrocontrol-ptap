@@ -3914,3 +3914,28 @@ h2 {
     color: #7dd3fc;
     text-decoration: underline;
 }
+
+.mo-live-card.mo-card-alarm {
+    border: 1px solid rgba(239, 68, 68, 0.45) !important;
+    background: linear-gradient(145deg, rgba(35, 14, 18, 0.85), rgba(20, 10, 14, 0.95)) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(239, 68, 68, 0.08);
+}
+
+.badge-mo-pill.alarm {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+}
+
+.mo-live-text.text-alarm {
+    color: #fca5a5 !important;
+    font-weight: 500;
+}
+
+.mo-link-btn.alarm-link {
+    color: #f87171 !important;
+    font-weight: 600;
+}
+
+.mo-link-btn.alarm-link:hover {
+    color: #fca5a5 !important;
+}

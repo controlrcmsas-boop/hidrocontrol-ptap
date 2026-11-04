@@ -582,6 +582,30 @@
                     const condPct = Math.max(0, Math.min(100, (cond / 2000.0) * 100));
                     document.getElementById('condBar').style.width = condPct + '%';
 
+                    // Sincronización inteligente de MO con telemetría en vivo
+                    const alarms = [];
+                    if (ph < 6.5) alarms.push(`pH Ácido (${ph.toFixed(2)} pH)`);
+                    else if (ph > 8.5) alarms.push(`pH Alcalino (${ph.toFixed(2)} pH)`);
+                    if (turb > 1.8) alarms.push(`Turbidez Elevada (${turb.toFixed(1)} NTU)`);
+                    if (cond > 200) alarms.push(`Conductividad (${Math.round(cond)} µS/cm)`);
+
+                    const moEl = document.getElementById('moText');
+                    if (moEl) {
+                        if (alarms.length > 0) {
+                            moEl.textContent = 'MO: ALERTA DE PROCESO ACTIVA. ' + alarms.join(' | ') + '. Mitigación química en curso.';
+                            moEl.style.color = '#ff6b6b';
+                            moEl.style.fontWeight = '600';
+                        } else if (v.mo_message && !v.mo_message.includes('ALERTA')) {
+                            moEl.textContent = v.mo_message;
+                            moEl.style.color = 'var(--text-main)';
+                            moEl.style.fontWeight = 'normal';
+                        } else {
+                            moEl.textContent = 'MO: Supervisión nominal en planta. Parámetros estables dentro de norma potable.';
+                            moEl.style.color = 'var(--text-main)';
+                            moEl.style.fontWeight = 'normal';
+                        }
+                    }
+
                     // Estados de actuadores
                     const bOn = Boolean(v.bomba_principal_estado);
                     const sOn = Boolean(v.dosificador_sulfato_estado);
@@ -653,10 +677,13 @@
                 if (res.ok) {
                     const data = await res.json();
                     document.getElementById('syncBadge').textContent = 'SQLite: ' + (data.pendingSyncCount || 0) + ' pendientes';
-                    if (data.recentEvents && data.recentEvents.length > 0) {
-                        document.getElementById('moText').textContent = data.recentEvents[data.recentEvents.length - 1];
-                    } else {
-                        document.getElementById('moText').textContent = 'MO: Supervisión nominal en planta. Parámetros estables.';
+                    const moEl = document.getElementById('moText');
+                    if (moEl && moEl.style.color !== 'rgb(255, 107, 107)' && moEl.style.color !== '#ff6b6b') {
+                        if (data.moStatus) {
+                            moEl.textContent = data.moStatus;
+                        } else if (data.recentEvents && data.recentEvents.length > 0) {
+                            moEl.textContent = data.recentEvents[data.recentEvents.length - 1];
+                        }
                     }
                 }
             } catch {}

@@ -102,7 +102,8 @@ let state = {
     dryRunTrip: false,
     policyRules: loadPolicyRules(),
     lastSulfateToggle: 0,
-    lastChlorineToggle: 0
+    lastChlorineToggle: 0,
+    moStatus: 'MO: Supervisión nominal en planta. Parámetros estables.'
 };
 
 function addEvent(msg) {
@@ -325,6 +326,20 @@ async function runLocalAgent(v) {
     // Regla de Calidad de Agua gobernada por el criterio entrenado por JEV
     const turb = v.turbidez_agua_tratada || 0;
     const ph = v.ph_agua_tratada || 7.0;
+    const condVal = v.conductividad_agua_tratada || v.conductividad_agua_cruda || 0;
+
+    // Criterio cognitivo continuo de MO para supervisión de calidad
+    const activeAlarmsList = [];
+    if (ph < 6.5) activeAlarmsList.push(`pH Ácido (${ph.toFixed(2)} pH)`);
+    else if (ph > 8.5) activeAlarmsList.push(`pH Alcalino (${ph.toFixed(2)} pH)`);
+    if (turb > (state.policyRules.turbidityHighThreshold || 5.0)) activeAlarmsList.push(`Turbidez Elevada (${turb.toFixed(1)} NTU)`);
+    if (condVal > 200) activeAlarmsList.push(`Conductividad (${Math.round(condVal)} µS/cm)`);
+
+    if (activeAlarmsList.length > 0) {
+        state.moStatus = `MO: ALERTA DE PROCESO ACTIVA. ${activeAlarmsList.join(' | ')}. Mitigación química en curso.`;
+    } else {
+        state.moStatus = `MO: Supervisión nominal en planta. Parámetros estables.`;
+    }
     const highLimit = state.policyRules.turbidityHighThreshold || 5.0;
     const optLimit = state.policyRules.turbidityOptimalThreshold || 2.0;
     const now = Date.now();
@@ -425,6 +440,7 @@ const edgeServer = http.createServer((req, res) => {
             pendingSyncCount: state.pendingSyncCount,
             policyRules: state.policyRules,
             recentEvents: state.recentEvents,
+            moStatus: state.moStatus,
             timestamp: new Date().toISOString()
         }));
         return;

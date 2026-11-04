@@ -68,26 +68,61 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
                 _lastPlcSuccess = telemetry.PlcConnected;
                 simulationEngine.SetConnectionAlarm(telemetry.PlcConnected);
 
-                // Estabilidad SCADA: si el paquete no incluye mo_message pero teníamos uno previo válido, preservarlo
-                if (telemetry.Values.TryGetValue("mo_message", out var msgObj) && msgObj is not null && !string.IsNullOrWhiteSpace(msgObj.ToString()))
+                simulationEngine.RecordTelemetrySample(telemetry);
+
+                // Evaluar alarmas de proceso activas (turbidez, pH, conductividad)
+                var processAlarms = simulationEngine.GetActiveAlarms().Where(a => a.TagId != "enlace_servidor").ToList();
+                if (processAlarms.Count > 0)
                 {
-                    _lastKnownMoMessage = msgObj.ToString();
-                    if (telemetry.Values.TryGetValue("mo_source", out var srcObj) && srcObj is not null)
+                    var alertText = $"MO: ALERTA DE PROCESO ACTIVA ({processAlarms.Count}). " + string.Join(" | ", processAlarms.Select(a => a.Message)) + ". Mitigación química en curso.";
+                    _lastKnownMoMessage = alertText;
+                    _lastKnownMoSource = "JEV_CLOUD";
+                    telemetry.Values["mo_message"] = alertText;
+                    telemetry.Values["mo_source"] = "JEV_CLOUD";
+
+                    // Sincronizar mensaje de alerta a Node-RED y consola local del servidor
+                    _ = Task.Run(async () =>
                     {
-                        _lastKnownMoSource = srcObj.ToString();
-                    }
+                        try
+                        {
+                            await SendMoMessageAsync(alertText, "JEV_CLOUD");
+                        }
+                        catch { }
+                    });
                 }
-                else if (_lastKnownMoMessage is not null)
+                else
                 {
-                    telemetry.Values["mo_message"] = _lastKnownMoMessage;
-                    if (_lastKnownMoSource is not null)
+                    // Si no hay alarmas activas, limpiar rastro de alerta anterior
+                    if (_lastKnownMoMessage is not null && _lastKnownMoMessage.Contains("ALERTA"))
                     {
-                        telemetry.Values["mo_source"] = _lastKnownMoSource;
+                        _lastKnownMoMessage = null;
+                    }
+
+                    if (telemetry.Values.TryGetValue("mo_message", out var msgObj) && msgObj is not null && !string.IsNullOrWhiteSpace(msgObj.ToString()))
+                    {
+                        _lastKnownMoMessage = msgObj.ToString();
+                        if (telemetry.Values.TryGetValue("mo_source", out var srcObj) && srcObj is not null)
+                        {
+                            _lastKnownMoSource = srcObj.ToString();
+                        }
+                    }
+                    else if (_lastKnownMoMessage is not null)
+                    {
+                        telemetry.Values["mo_message"] = _lastKnownMoMessage;
+                        if (_lastKnownMoSource is not null)
+                        {
+                            telemetry.Values["mo_source"] = _lastKnownMoSource;
+                        }
+                    }
+                    else
+                    {
+                        var nominalMsg = "MO: Supervisión nominal en planta. Calidad del agua dentro de norma potable.";
+                        telemetry.Values["mo_message"] = nominalMsg;
+                        telemetry.Values["mo_source"] = "JEV_CLOUD";
                     }
                 }
 
                 _lastPlcTelemetry = telemetry;
-                simulationEngine.RecordTelemetrySample(telemetry);
                 return telemetry;
             }
 

@@ -59,28 +59,65 @@ public sealed class PtapSimulationEngine
     private readonly Timer? _backgroundTimer;
 
     
+    private static readonly string AlarmFilePath = Path.Combine(AppContext.BaseDirectory, "ptap-alarm-history.json");
     private readonly List<AlarmEvent> _activeAlarms = [];
     private readonly List<AlarmEvent> _alarmHistory = [];
     private long _nextAlarmId = 1;
 
     public PtapSimulationEngine()
     {
-        // Historial de inicio del sistema
-        _alarmHistory.Add(new AlarmEvent
+        LoadAlarmsFromDisk();
+
+        if (_alarmHistory.Count == 0)
         {
-            Id = _nextAlarmId++,
-            TagId = "sistema_scada",
-            NombreVisible = "Sistema SCADA",
-            AlarmType = "SYSTEM_BOOT",
-            Severity = "info",
-            Message = "Supervisión continua activa en Cloud y Planta",
-            State = "RESUELTA",
-            StartedAt = DateTimeOffset.UtcNow.AddMinutes(-10),
-            ClearedAt = DateTimeOffset.UtcNow.AddMinutes(-10)
-        });
+            _alarmHistory.Add(new AlarmEvent
+            {
+                Id = _nextAlarmId++,
+                TagId = "sistema_scada",
+                NombreVisible = "Sistema SCADA",
+                AlarmType = "SYSTEM_BOOT",
+                Severity = "info",
+                Message = "Supervisión continua activa en Cloud y Planta",
+                State = "RESUELTA",
+                StartedAt = DateTimeOffset.UtcNow.AddMinutes(-10),
+                ClearedAt = DateTimeOffset.UtcNow.AddMinutes(-10)
+            });
+            SaveAlarmsToDisk();
+        }
 
         // Muestreador continuo en segundo plano cada 2 segundos
         _backgroundTimer = new Timer(OnBackgroundTick, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    private void LoadAlarmsFromDisk()
+    {
+        try
+        {
+            if (File.Exists(AlarmFilePath))
+            {
+                var json = File.ReadAllText(AlarmFilePath);
+                var loaded = System.Text.Json.JsonSerializer.Deserialize<List<AlarmEvent>>(json);
+                if (loaded != null && loaded.Count > 0)
+                {
+                    _alarmHistory.Clear();
+                    _alarmHistory.AddRange(loaded);
+                    _activeAlarms.Clear();
+                    _activeAlarms.AddRange(loaded.Where(a => a.State == "ACTIVA"));
+                    _nextAlarmId = loaded.Max(a => a.Id) + 1;
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void SaveAlarmsToDisk()
+    {
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(_alarmHistory, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(AlarmFilePath, json);
+        }
+        catch { }
     }
 
     private void OnBackgroundTick(object? state)
@@ -468,6 +505,7 @@ public sealed class PtapSimulationEngine
                     };
                     _activeAlarms.Add(alarm);
                     _alarmHistory.Insert(0, alarm);
+                    SaveAlarmsToDisk();
                 }
             }
             else
@@ -478,7 +516,6 @@ public sealed class PtapSimulationEngine
                     existing.ClearedAt = now;
                     _activeAlarms.Remove(existing);
 
-                    // Registrar evento de recuperación en el historial
                     _alarmHistory.Insert(0, new AlarmEvent
                     {
                         Id = _nextAlarmId++,
@@ -491,6 +528,7 @@ public sealed class PtapSimulationEngine
                         StartedAt = now,
                         ClearedAt = now
                     });
+                    SaveAlarmsToDisk();
                 }
             }
         }
@@ -503,15 +541,21 @@ public sealed class PtapSimulationEngine
         lock (_sync)
         {
             var now = telemetry.Timestamp != default ? telemetry.Timestamp : DateTimeOffset.UtcNow;
+            bool changed = false;
 
-            // 1. Turbidez tratada o cruda
+            // 1. Turbidez (detecta Agua con tierra tanto en cruda como en tratada)
             double turbT = GetDictDouble(telemetry.Values, "turbidez_agua_tratada");
             double turbC = GetDictDouble(telemetry.Values, "turbidez_agua_cruda");
-            double effectiveTurb = turbT > 0 ? turbT : turbC;
+            bool isTurbAlarm = turbT > 1.80 || turbC > 5.0;
+            double effectiveTurb = turbT > 1.80 ? turbT : turbC;
 
             var turbAlarm = _activeAlarms.FirstOrDefault(a => a.TagId == "turbidez");
-            if (effectiveTurb > 1.80)
+            if (isTurbAlarm)
             {
+                string msg = turbT > 1.80
+                    ? $"Turbidez tratada fuera de norma: {turbT:0.00} NTU (Límite: 1.80 NTU)"
+                    : $"Turbidez elevada en agua cruda: {turbC:0.0} NTU (Límite: 5.0 NTU)";
+
                 if (turbAlarm is null)
                 {
                     turbAlarm = new AlarmEvent
@@ -520,37 +564,44 @@ public sealed class PtapSimulationEngine
                         TagId = "turbidez",
                         NombreVisible = "Turbidez",
                         AlarmType = "HIGH_LIMIT",
-                        Severity = effectiveTurb > 5.0 ? "critical" : "high",
+                        Severity = effectiveTurb > 20.0 ? "critical" : "high",
                         ValueNumeric = (decimal)Math.Round(effectiveTurb, 2),
-                        Message = $"Turbidez elevada fuera de norma: {effectiveTurb:0.00} NTU (Límite: 1.80 NTU)",
+                        Message = msg,
                         State = "ACTIVA",
                         StartedAt = now
                     };
                     _activeAlarms.Add(turbAlarm);
                     _alarmHistory.Insert(0, turbAlarm);
+                    changed = true;
                 }
                 else
                 {
                     turbAlarm.ValueNumeric = (decimal)Math.Round(effectiveTurb, 2);
-                    turbAlarm.Message = $"Turbidez fuera de norma: {effectiveTurb:0.00} NTU (Límite: 1.80 NTU)";
+                    turbAlarm.Message = msg;
                 }
             }
-            else if (turbAlarm is not null && effectiveTurb > 0)
+            else if (turbAlarm is not null && (turbT > 0 || turbC > 0))
             {
                 turbAlarm.State = "RESUELTA";
                 turbAlarm.ClearedAt = now;
                 _activeAlarms.Remove(turbAlarm);
+                changed = true;
             }
 
-            // 2. pH tratado o crudo
+            // 2. pH (detecta Agua con limón tanto en cruda como en tratada)
             double phT = GetDictDouble(telemetry.Values, "ph_agua_tratada");
             double phC = GetDictDouble(telemetry.Values, "ph_agua_cruda");
-            double effectivePh = phT > 0 ? phT : phC;
+            bool isPhAcid = (phT > 0 && phT < 6.5) || (phC > 0 && phC < 6.5);
+            bool isPhAlkaline = phT > 8.5 || phC > 8.5;
+            bool isPhAlarm = isPhAcid || isPhAlkaline;
+            double effectivePh = (phT > 0 && (phT < 6.5 || phT > 8.5)) ? phT : (phC > 0 ? phC : 7.0);
 
             var phAlarm = _activeAlarms.FirstOrDefault(a => a.TagId == "ph");
-            if (effectivePh > 0 && (effectivePh < 6.5 || effectivePh > 8.5))
+            if (isPhAlarm)
             {
-                string desc = effectivePh < 6.5 ? "ácido" : "alcalino";
+                string desc = isPhAcid ? "ácido corrosivo" : "alcalino";
+                string msg = $"pH {desc} fuera de norma: {effectivePh:0.00} pH (Rango: 6.5 — 8.5)";
+
                 if (phAlarm is null)
                 {
                     phAlarm = new AlarmEvent
@@ -558,37 +609,41 @@ public sealed class PtapSimulationEngine
                         Id = _nextAlarmId++,
                         TagId = "ph",
                         NombreVisible = "pH de Agua",
-                        AlarmType = effectivePh < 6.5 ? "LOW_LIMIT" : "HIGH_LIMIT",
+                        AlarmType = isPhAcid ? "LOW_LIMIT" : "HIGH_LIMIT",
                         Severity = "high",
                         ValueNumeric = (decimal)Math.Round(effectivePh, 2),
-                        Message = $"pH {desc} fuera de norma: {effectivePh:0.00} pH (Rango: 6.5 — 8.5)",
+                        Message = msg,
                         State = "ACTIVA",
                         StartedAt = now
                     };
                     _activeAlarms.Add(phAlarm);
                     _alarmHistory.Insert(0, phAlarm);
+                    changed = true;
                 }
                 else
                 {
                     phAlarm.ValueNumeric = (decimal)Math.Round(effectivePh, 2);
-                    phAlarm.Message = $"pH {desc} fuera de norma: {effectivePh:0.00} pH (Rango: 6.5 — 8.5)";
+                    phAlarm.Message = msg;
                 }
             }
-            else if (phAlarm is not null && effectivePh >= 6.5 && effectivePh <= 8.5)
+            else if (phAlarm is not null && ((phT >= 6.5 && phT <= 8.5) || (phC >= 6.5 && phC <= 8.5)))
             {
                 phAlarm.State = "RESUELTA";
                 phAlarm.ClearedAt = now;
                 _activeAlarms.Remove(phAlarm);
+                changed = true;
             }
 
-            // 3. Conductividad
+            // 3. Conductividad (detecta Agua con sal / intrusión salina)
             double condT = GetDictDouble(telemetry.Values, "conductividad_agua_tratada");
             double condC = GetDictDouble(telemetry.Values, "conductividad_agua_cruda");
-            double effectiveCond = condT > 0 ? condT : condC;
+            bool isCondAlarm = condT > 200.0 || condC > 200.0;
+            double effectiveCond = condT > 200.0 ? condT : condC;
 
             var condAlarm = _activeAlarms.FirstOrDefault(a => a.TagId == "conductividad");
-            if (effectiveCond > 1000.0)
+            if (isCondAlarm)
             {
+                string msg = $"Conductividad elevada / intrusión salina: {effectiveCond:0} µS/cm (Nominal: < 200 µS/cm)";
                 if (condAlarm is null)
                 {
                     condAlarm = new AlarmEvent
@@ -597,26 +652,33 @@ public sealed class PtapSimulationEngine
                         TagId = "conductividad",
                         NombreVisible = "Conductividad",
                         AlarmType = "HIGH_LIMIT",
-                        Severity = "medium",
+                        Severity = effectiveCond > 500.0 ? "critical" : "high",
                         ValueNumeric = (decimal)Math.Round(effectiveCond, 0),
-                        Message = $"Conductividad elevada: {effectiveCond:0} µS/cm (Límite: 1000 µS/cm)",
+                        Message = msg,
                         State = "ACTIVA",
                         StartedAt = now
                     };
                     _activeAlarms.Add(condAlarm);
                     _alarmHistory.Insert(0, condAlarm);
+                    changed = true;
                 }
                 else
                 {
                     condAlarm.ValueNumeric = (decimal)Math.Round(effectiveCond, 0);
-                    condAlarm.Message = $"Conductividad elevada: {effectiveCond:0} µS/cm (Límite: 1000 µS/cm)";
+                    condAlarm.Message = msg;
                 }
             }
-            else if (condAlarm is not null && effectiveCond > 0 && effectiveCond <= 1000.0)
+            else if (condAlarm is not null && (condT > 0 || condC > 0) && condT <= 200.0 && condC <= 200.0)
             {
                 condAlarm.State = "RESUELTA";
                 condAlarm.ClearedAt = now;
                 _activeAlarms.Remove(condAlarm);
+                changed = true;
+            }
+
+            if (changed)
+            {
+                SaveAlarmsToDisk();
             }
         }
     }
@@ -797,6 +859,17 @@ public sealed class PtapSimulationEngine
         if (val is float f) return f;
         if (val is decimal dec) return (double)dec;
         if (val is int i) return i;
+        if (val is long l) return l;
+        if (val is System.Text.Json.JsonElement je)
+        {
+            if (je.ValueKind == System.Text.Json.JsonValueKind.Number && je.TryGetDouble(out var parsedDbl))
+                return parsedDbl;
+            if (double.TryParse(je.GetString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsedStr))
+                return parsedStr;
+            if (double.TryParse(je.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsedAny))
+                return parsedAny;
+            return 0.0;
+        }
         if (double.TryParse(val.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed)) return parsed;
         return 0.0;
     }

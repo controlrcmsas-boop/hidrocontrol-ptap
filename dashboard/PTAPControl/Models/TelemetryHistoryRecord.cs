@@ -46,3 +46,4 @@ public sealed class TelemetryHistoryRecord
     [JsonPropertyName("sincronizado")]
     public int? Sincronizado { get; set; }
 }
+

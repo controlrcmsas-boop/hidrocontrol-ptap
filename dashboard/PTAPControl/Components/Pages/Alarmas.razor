@@ -154,6 +154,9 @@
     {
         try
         {
+            // Adquirir la muestra en tiempo real más reciente para evaluar alarmas
+            await Api.GetCurrentTelemetryAsync();
+
             ActiveAlarms = await Api.GetActiveAlarmsAsync();
             History = await Api.GetAlarmHistoryAsync(100);
             ErrorMessage = null;

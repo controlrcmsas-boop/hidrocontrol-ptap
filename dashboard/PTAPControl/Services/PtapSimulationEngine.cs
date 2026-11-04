@@ -646,9 +646,12 @@ public sealed class PtapSimulationEngine
     }
 
     private DateTimeOffset _lastRecordedSampleTime = DateTimeOffset.MinValue;
-    private double _lastRecordedSampleTurb = -999;
-    private double _lastRecordedSamplePh = -999;
-    private double _lastRecordedSampleCond = -999;
+    private double _lastRecordedSampleTurbT = -999;
+    private double _lastRecordedSampleTurbC = -999;
+    private double _lastRecordedSamplePhT = -999;
+    private double _lastRecordedSamplePhC = -999;
+    private double _lastRecordedSampleCondT = -999;
+    private double _lastRecordedSampleCondC = -999;
 
     public void RecordTelemetrySample(TelemetryResponse telemetry)
     {
@@ -659,24 +662,33 @@ public sealed class PtapSimulationEngine
         {
             var now = telemetry.Timestamp != default ? telemetry.Timestamp : DateTimeOffset.UtcNow;
 
-            // Filtro Deadband: evitar duplicados en memoria si no hay cambio apreciable y han pasado < 5 segundos
-            double currentTurb = GetDictDouble(telemetry.Values, "turbidez_agua_cruda");
-            double currentPh = GetDictDouble(telemetry.Values, "ph_agua_cruda");
-            double currentCond = GetDictDouble(telemetry.Values, "conductividad_agua_cruda");
+            // Filtro Deadband: registrar de inmediato si hay cambio o si transcurrieron 2 segundos
+            double currentTurbT = GetDictDouble(telemetry.Values, "turbidez_agua_tratada");
+            double currentTurbC = GetDictDouble(telemetry.Values, "turbidez_agua_cruda");
+            double currentPhT = GetDictDouble(telemetry.Values, "ph_agua_tratada");
+            double currentPhC = GetDictDouble(telemetry.Values, "ph_agua_cruda");
+            double currentCondT = GetDictDouble(telemetry.Values, "conductividad_agua_tratada");
+            double currentCondC = GetDictDouble(telemetry.Values, "conductividad_agua_cruda");
 
-            bool significantChange = Math.Abs(currentTurb - _lastRecordedSampleTurb) >= 1.0 ||
-                                     Math.Abs(currentPh - _lastRecordedSamplePh) >= 0.10 ||
-                                     Math.Abs(currentCond - _lastRecordedSampleCond) >= 15.0;
+            bool significantChange = Math.Abs(currentTurbT - _lastRecordedSampleTurbT) >= 0.10 ||
+                                     Math.Abs(currentTurbC - _lastRecordedSampleTurbC) >= 0.50 ||
+                                     Math.Abs(currentPhT - _lastRecordedSamplePhT) >= 0.04 ||
+                                     Math.Abs(currentPhC - _lastRecordedSamplePhC) >= 0.08 ||
+                                     Math.Abs(currentCondT - _lastRecordedSampleCondT) >= 5.0 ||
+                                     Math.Abs(currentCondC - _lastRecordedSampleCondC) >= 10.0;
 
-            if ((now - _lastRecordedSampleTime).TotalSeconds < 5.0 && !significantChange)
+            if ((now - _lastRecordedSampleTime).TotalSeconds < 2.0 && !significantChange)
             {
-                return; // Omitir muestra redundante
+                return; // Omitir muestra redundante en estado estacionario
             }
 
             _lastRecordedSampleTime = now;
-            _lastRecordedSampleTurb = currentTurb;
-            _lastRecordedSamplePh = currentPh;
-            _lastRecordedSampleCond = currentCond;
+            _lastRecordedSampleTurbT = currentTurbT;
+            _lastRecordedSampleTurbC = currentTurbC;
+            _lastRecordedSamplePhT = currentPhT;
+            _lastRecordedSamplePhC = currentPhC;
+            _lastRecordedSampleCondT = currentCondT;
+            _lastRecordedSampleCondC = currentCondC;
 
             foreach (var (key, val) in telemetry.Values)
             {

@@ -673,6 +673,9 @@
     {
         try
         {
+            // Adquirir la muestra en tiempo real más reciente para alimentar el buffer histórico
+            await Api.GetCurrentTelemetryAsync();
+
             var loaded = new List<QualityHistoryPoint>();
             foreach (var series in AllSeries)
             {

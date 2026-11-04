@@ -55,6 +55,7 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
                 {
                     _lastPlcSuccess = false;
                     _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow, Source = "OFFLINE_LOCAL" };
+                    simulationEngine.SetConnectionAlarm(false, "Desconexión de enlace exterior (Servidor Offline)");
                 }
                 return _lastPlcTelemetry ?? new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
             }
@@ -65,6 +66,7 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
             {
                 _consecutiveFailures = 0;
                 _lastPlcSuccess = telemetry.PlcConnected;
+                simulationEngine.SetConnectionAlarm(telemetry.PlcConnected);
 
                 // Estabilidad SCADA: si el paquete no incluye mo_message pero teníamos uno previo válido, preservarlo
                 if (telemetry.Values.TryGetValue("mo_message", out var msgObj) && msgObj is not null && !string.IsNullOrWhiteSpace(msgObj.ToString()))
@@ -94,6 +96,7 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
             {
                 _lastPlcSuccess = false;
                 _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow, Source = "OFFLINE_LOCAL" };
+                    simulationEngine.SetConnectionAlarm(false, "Desconexión de enlace exterior (Servidor Offline)");
             }
             return _lastPlcTelemetry ?? new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
         }
@@ -105,6 +108,7 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
             {
                 _lastPlcSuccess = false;
                 _lastPlcTelemetry = new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow, Source = "OFFLINE_LOCAL" };
+                    simulationEngine.SetConnectionAlarm(false, "Desconexión de enlace exterior (Servidor Offline)");
             }
             return _lastPlcTelemetry ?? new TelemetryResponse { PlcConnected = false, Timestamp = DateTime.UtcNow };
         }
@@ -183,58 +187,19 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
         }
     }
 
-    public async Task<List<QualityHistoryPoint>> GetQualityHistoryAsync(string tag, int limit = 100, CancellationToken cancellationToken = default)
+    public Task<List<QualityHistoryPoint>> GetQualityHistoryAsync(string tag, int limit = 100, CancellationToken cancellationToken = default)
     {
-        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc || !_lastPlcSuccess)
-        {
-            return simulationEngine.GetQualityHistory(tag, limit);
-        }
-
-        var url = $"api/telemetry/quality-history?tag={Uri.EscapeDataString(tag)}&limit={limit}";
-        try
-        {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromMilliseconds(400));
-            return await http.GetFromJsonAsync<List<QualityHistoryPoint>>(url, cts.Token) ?? [];
-        }
-        catch
-        {
-            return simulationEngine.GetQualityHistory(tag, limit);
-        }
+        return Task.FromResult(simulationEngine.GetQualityHistory(tag, limit));
     }
 
-    public async Task<List<AlarmEvent>> GetActiveAlarmsAsync(CancellationToken cancellationToken = default)
+    public Task<List<AlarmEvent>> GetActiveAlarmsAsync(CancellationToken cancellationToken = default)
     {
-        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
-        {
-            return simulationEngine.GetActiveAlarms();
-        }
-
-        try
-        {
-            return await http.GetFromJsonAsync<List<AlarmEvent>>("api/alarms/active", cancellationToken) ?? [];
-        }
-        catch
-        {
-            return simulationEngine.GetActiveAlarms();
-        }
+        return Task.FromResult(simulationEngine.GetActiveAlarms());
     }
 
-    public async Task<List<AlarmEvent>> GetAlarmHistoryAsync(int limit = 100, CancellationToken cancellationToken = default)
+    public Task<List<AlarmEvent>> GetAlarmHistoryAsync(int limit = 100, CancellationToken cancellationToken = default)
     {
-        if (simulationEngine.CurrentMode != PtapDataSourceMode.PhysicalPlc)
-        {
-            return simulationEngine.GetActiveAlarms();
-        }
-
-        try
-        {
-            return await http.GetFromJsonAsync<List<AlarmEvent>>($"api/alarms/history?limit={limit}", cancellationToken) ?? [];
-        }
-        catch
-        {
-            return simulationEngine.GetActiveAlarms();
-        }
+        return Task.FromResult(simulationEngine.GetAlarmHistory(limit));
     }
 
     public async Task<List<AlarmLimit>> GetAlarmLimitsAsync(CancellationToken cancellationToken = default)

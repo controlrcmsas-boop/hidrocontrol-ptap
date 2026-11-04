@@ -58,10 +58,26 @@ public sealed class PtapSimulationEngine
     private const int MaxHistoryPointsPerTag = 3600;
     private readonly Timer? _backgroundTimer;
 
+    
+    private readonly List<AlarmEvent> _activeAlarms = [];
+    private readonly List<AlarmEvent> _alarmHistory = [];
+    private long _nextAlarmId = 1;
+
     public PtapSimulationEngine()
     {
-        // Sembrar historial coherente con los valores iniciales para las últimas 2 horas
-        InitializeFullHistory();
+        // Historial de inicio del sistema
+        _alarmHistory.Add(new AlarmEvent
+        {
+            Id = _nextAlarmId++,
+            TagId = "sistema_scada",
+            NombreVisible = "Sistema SCADA",
+            AlarmType = "SYSTEM_BOOT",
+            Severity = "info",
+            Message = "Supervisión continua activa en Cloud y Planta",
+            State = "RESUELTA",
+            StartedAt = DateTimeOffset.UtcNow.AddMinutes(-10),
+            ClearedAt = DateTimeOffset.UtcNow.AddMinutes(-10)
+        });
 
         // Muestreador continuo en segundo plano cada 2 segundos
         _backgroundTimer = new Timer(OnBackgroundTick, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
@@ -416,53 +432,216 @@ public sealed class PtapSimulationEngine
     {
         lock (_sync)
         {
-            var list = new List<AlarmEvent>();
-            if (PlcEnFalla || SimulatePlcDisconnected)
+            return _activeAlarms.OrderByDescending(a => a.StartedAt).ToList();
+        }
+    }
+
+    public List<AlarmEvent> GetAlarmHistory(int limit = 100)
+    {
+        lock (_sync)
+        {
+            return _alarmHistory.OrderByDescending(a => a.StartedAt).Take(limit).ToList();
+        }
+    }
+
+    public void SetConnectionAlarm(bool isOnline, string details = "")
+    {
+        lock (_sync)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var existing = _activeAlarms.FirstOrDefault(a => a.TagId == "enlace_servidor");
+
+            if (!isOnline)
             {
-                list.Add(new AlarmEvent
+                if (existing is null)
                 {
-                    Id = 1,
-                    TagId = "plc_comms",
-                    NombreVisible = "Enlace PLC",
-                    AlarmType = "COMM_FAULT",
-                    Severity = "critical",
-                    Message = "Pérdida de enlace con el autómata Siemens S7-1200",
-                    State = "ACTIVE",
-                    StartedAt = DateTimeOffset.UtcNow.AddMinutes(-5)
-                });
+                    var alarm = new AlarmEvent
+                    {
+                        Id = _nextAlarmId++,
+                        TagId = "enlace_servidor",
+                        NombreVisible = "Enlace Servidor",
+                        AlarmType = "COMM_FAULT",
+                        Severity = "critical",
+                        Message = string.IsNullOrWhiteSpace(details) ? "Pérdida de enlace con el servidor de planta (Offline)" : details,
+                        State = "ACTIVA",
+                        StartedAt = now
+                    };
+                    _activeAlarms.Add(alarm);
+                    _alarmHistory.Insert(0, alarm);
+                }
+            }
+            else
+            {
+                if (existing is not null)
+                {
+                    existing.State = "RESUELTA";
+                    existing.ClearedAt = now;
+                    _activeAlarms.Remove(existing);
+
+                    // Registrar evento de recuperación en el historial
+                    _alarmHistory.Insert(0, new AlarmEvent
+                    {
+                        Id = _nextAlarmId++,
+                        TagId = "enlace_servidor",
+                        NombreVisible = "Enlace Servidor",
+                        AlarmType = "COMM_RESTORED",
+                        Severity = "info",
+                        Message = "Conexión con el servidor de planta restablecida con éxito",
+                        State = "RESUELTA",
+                        StartedAt = now,
+                        ClearedAt = now
+                    });
+                }
+            }
+        }
+    }
+
+    public void EvaluateTelemetryAlarms(TelemetryResponse telemetry)
+    {
+        if (telemetry?.Values == null) return;
+
+        lock (_sync)
+        {
+            var now = telemetry.Timestamp != default ? telemetry.Timestamp : DateTimeOffset.UtcNow;
+
+            // 1. Turbidez tratada o cruda
+            double turbT = GetDictDouble(telemetry.Values, "turbidez_agua_tratada");
+            double turbC = GetDictDouble(telemetry.Values, "turbidez_agua_cruda");
+            double effectiveTurb = turbT > 0 ? turbT : turbC;
+
+            var turbAlarm = _activeAlarms.FirstOrDefault(a => a.TagId == "turbidez");
+            if (effectiveTurb > 1.80)
+            {
+                if (turbAlarm is null)
+                {
+                    turbAlarm = new AlarmEvent
+                    {
+                        Id = _nextAlarmId++,
+                        TagId = "turbidez",
+                        NombreVisible = "Turbidez",
+                        AlarmType = "HIGH_LIMIT",
+                        Severity = effectiveTurb > 5.0 ? "critical" : "high",
+                        ValueNumeric = (decimal)Math.Round(effectiveTurb, 2),
+                        Message = $"Turbidez elevada fuera de norma: {effectiveTurb:0.00} NTU (Límite: 1.80 NTU)",
+                        State = "ACTIVA",
+                        StartedAt = now
+                    };
+                    _activeAlarms.Add(turbAlarm);
+                    _alarmHistory.Insert(0, turbAlarm);
+                }
+                else
+                {
+                    turbAlarm.ValueNumeric = (decimal)Math.Round(effectiveTurb, 2);
+                    turbAlarm.Message = $"Turbidez fuera de norma: {effectiveTurb:0.00} NTU (Límite: 1.80 NTU)";
+                }
+            }
+            else if (turbAlarm is not null && effectiveTurb > 0)
+            {
+                turbAlarm.State = "RESUELTA";
+                turbAlarm.ClearedAt = now;
+                _activeAlarms.Remove(turbAlarm);
             }
 
-            if (!BombaPrincipalEstado && ActiveScenario == "pump_fault")
+            // 2. pH tratado o crudo
+            double phT = GetDictDouble(telemetry.Values, "ph_agua_tratada");
+            double phC = GetDictDouble(telemetry.Values, "ph_agua_cruda");
+            double effectivePh = phT > 0 ? phT : phC;
+
+            var phAlarm = _activeAlarms.FirstOrDefault(a => a.TagId == "ph");
+            if (effectivePh > 0 && (effectivePh < 6.5 || effectivePh > 8.5))
             {
-                list.Add(new AlarmEvent
+                string desc = effectivePh < 6.5 ? "ácido" : "alcalino";
+                if (phAlarm is null)
                 {
-                    Id = 2,
-                    TagId = "bomba_principal_estado",
-                    NombreVisible = "Bomba 1",
-                    AlarmType = "TRIP",
-                    Severity = "high",
-                    Message = "Disparo por sobrecorriente o sobrecalentamiento en Bomba 1",
-                    State = "ACTIVE",
-                    StartedAt = DateTimeOffset.UtcNow.AddMinutes(-2)
-                });
+                    phAlarm = new AlarmEvent
+                    {
+                        Id = _nextAlarmId++,
+                        TagId = "ph",
+                        NombreVisible = "pH de Agua",
+                        AlarmType = effectivePh < 6.5 ? "LOW_LIMIT" : "HIGH_LIMIT",
+                        Severity = "high",
+                        ValueNumeric = (decimal)Math.Round(effectivePh, 2),
+                        Message = $"pH {desc} fuera de norma: {effectivePh:0.00} pH (Rango: 6.5 — 8.5)",
+                        State = "ACTIVA",
+                        StartedAt = now
+                    };
+                    _activeAlarms.Add(phAlarm);
+                    _alarmHistory.Insert(0, phAlarm);
+                }
+                else
+                {
+                    phAlarm.ValueNumeric = (decimal)Math.Round(effectivePh, 2);
+                    phAlarm.Message = $"pH {desc} fuera de norma: {effectivePh:0.00} pH (Rango: 6.5 — 8.5)";
+                }
+            }
+            else if (phAlarm is not null && effectivePh >= 6.5 && effectivePh <= 8.5)
+            {
+                phAlarm.State = "RESUELTA";
+                phAlarm.ClearedAt = now;
+                _activeAlarms.Remove(phAlarm);
             }
 
-            if (!DosificadorCloroEstado && ActiveScenario == "chlorine_fault")
-            {
-                list.Add(new AlarmEvent
-                {
-                    Id = 3,
-                    TagId = "dosificador_cloro_estado",
-                    NombreVisible = "Dosificador Cloro",
-                    AlarmType = "LOW_DOSAGE",
-                    Severity = "high",
-                    Message = "Caudal de hipoclorito de sodio fuera de rango mínimo",
-                    State = "ACTIVE",
-                    StartedAt = DateTimeOffset.UtcNow.AddMinutes(-1)
-                });
-            }
+            // 3. Conductividad
+            double condT = GetDictDouble(telemetry.Values, "conductividad_agua_tratada");
+            double condC = GetDictDouble(telemetry.Values, "conductividad_agua_cruda");
+            double effectiveCond = condT > 0 ? condT : condC;
 
-            return list;
+            var condAlarm = _activeAlarms.FirstOrDefault(a => a.TagId == "conductividad");
+            if (effectiveCond > 1000.0)
+            {
+                if (condAlarm is null)
+                {
+                    condAlarm = new AlarmEvent
+                    {
+                        Id = _nextAlarmId++,
+                        TagId = "conductividad",
+                        NombreVisible = "Conductividad",
+                        AlarmType = "HIGH_LIMIT",
+                        Severity = "medium",
+                        ValueNumeric = (decimal)Math.Round(effectiveCond, 0),
+                        Message = $"Conductividad elevada: {effectiveCond:0} µS/cm (Límite: 1000 µS/cm)",
+                        State = "ACTIVA",
+                        StartedAt = now
+                    };
+                    _activeAlarms.Add(condAlarm);
+                    _alarmHistory.Insert(0, condAlarm);
+                }
+                else
+                {
+                    condAlarm.ValueNumeric = (decimal)Math.Round(effectiveCond, 0);
+                    condAlarm.Message = $"Conductividad elevada: {effectiveCond:0} µS/cm (Límite: 1000 µS/cm)";
+                }
+            }
+            else if (condAlarm is not null && effectiveCond > 0 && effectiveCond <= 1000.0)
+            {
+                condAlarm.State = "RESUELTA";
+                condAlarm.ClearedAt = now;
+                _activeAlarms.Remove(condAlarm);
+            }
+        }
+    }
+
+    public void RecordHistoryBatch(IEnumerable<TelemetryHistoryRecord> records)
+    {
+        lock (_sync)
+        {
+            foreach (var rec in records)
+            {
+                if (!DateTimeOffset.TryParse(rec.Timestamp, out var time)) continue;
+
+                if (rec.PhAguaTratada.HasValue)
+                    AddHistoryPointDirect("ph_agua_tratada", time, rec.PhAguaTratada.Value, "pH");
+                if (rec.TurbidezAguaTratada.HasValue)
+                    AddHistoryPointDirect("turbidez_agua_tratada", time, rec.TurbidezAguaTratada.Value, "NTU");
+                if (rec.ConductividadAguaTratada.HasValue)
+                    AddHistoryPointDirect("conductividad_agua_tratada", time, rec.ConductividadAguaTratada.Value, "µS/cm");
+                if (rec.PhAguaCruda.HasValue)
+                    AddHistoryPointDirect("ph_agua_cruda", time, rec.PhAguaCruda.Value, "pH");
+                if (rec.TurbidezAguaCruda.HasValue)
+                    AddHistoryPointDirect("turbidez_agua_cruda", time, rec.TurbidezAguaCruda.Value, "NTU");
+                if (rec.ConductividadAguaCruda.HasValue)
+                    AddHistoryPointDirect("conductividad_agua_cruda", time, rec.ConductividadAguaCruda.Value, "µS/cm");
+            }
         }
     }
 
@@ -473,6 +652,7 @@ public sealed class PtapSimulationEngine
 
     public void RecordTelemetrySample(TelemetryResponse telemetry)
     {
+        EvaluateTelemetryAlarms(telemetry);
         if (telemetry?.Values == null || !telemetry.PlcConnected) return;
 
         lock (_sync)
@@ -613,13 +793,7 @@ public sealed class PtapSimulationEngine
     {
         lock (_sync)
         {
-            if (!_historyStore.TryGetValue(tag, out var list) || list.Count == 0)
-            {
-                InitializeFullHistory();
-                _historyStore.TryGetValue(tag, out list);
-            }
-
-            if (list == null || list.Count == 0)
+            if (!_historyStore.TryGetValue(tag, out var list) || list == null || list.Count == 0)
             {
                 return new List<QualityHistoryPoint>();
             }

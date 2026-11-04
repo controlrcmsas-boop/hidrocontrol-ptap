@@ -1,3 +1,4 @@
+using PTAPControl.Models;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -273,6 +274,19 @@ app.MapGet("/auth/logout", async (SignInManager<ApplicationUser> sm) =>
     await sm.SignOutAsync();
     return Results.Redirect("/login");
 }).RequireAuthorization();
+
+
+// ═══ Store & Forward: Sincronización de telemetría histórica desde SQLite del Servidor ═══
+app.MapPost("/api/telemetry/sync", (List<TelemetryHistoryRecord> records, PtapSimulationEngine engine) =>
+{
+    if (records == null || records.Count == 0)
+    {
+        return Results.Ok(new { success = true, received = 0 });
+    }
+
+    engine.RecordHistoryBatch(records);
+    return Results.Ok(new { success = true, received = records.Count });
+}).AllowAnonymous();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

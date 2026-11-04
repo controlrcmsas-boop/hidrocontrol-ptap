@@ -1,20 +1,24 @@
 @page "/alarmas"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Operador")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Operador,Gerente,Simulador,Demo")]
 @rendermode InteractiveServer
+@implements IDisposable
 @using PTAPControl.Models
 @using PTAPControl.Services
 @using PTAPControl.Components.Layout
 @inject NodeRedApiClient Api
 
-<PageTitle>Alarmas</PageTitle>
+<PageTitle>Alarmas — HIDROCONTROL PTAP</PageTitle>
 
 <section class="alarm-page">
     <header class="scada-header">
-        <div>
+        <div class="scada-title-wrap">
             <h1>Alarmas del Sistema</h1>
+            <p class="scada-subtitle">Supervisión en tiempo real e histórico de eventos</p>
         </div>
         <div class="header-actions">
-            <button class="btn-pill-action" @onclick="LoadAsync">Actualizar</button>
+            <button type="button" class="btn-pill-action" @onclick="LoadAsync">
+                Actualizar
+            </button>
             <TopUserNav />
         </div>
     </header>
@@ -24,77 +28,97 @@
         <div class="alert-line">@ErrorMessage</div>
     }
 
-    <!-- Guía de Configuración y Criterios de Alarmas para el Técnico -->
-    <div class="alarm-guide-card">
-        <h3>Guía de Configuración y Criterios de Alarmas</h3>
-        <p>
-            • <strong>Supervisión de Calidad:</strong> El sistema evalúa continuamente los límites de pH (6.5 — 8.5), Turbidez (&le; 2.0 NTU) y Conductividad (&le; 1.000 µS/cm).
-        </p>
-        <p>
-            • <strong>Niveles de Severidad:</strong> low (registro informativo), medium (advertencia operativa en consola), high (alarma prioritaria en pantalla), critical (alerta crítica con notificación por correo y WhatsApp).
-        </p>
-    </div>
+    <!-- SECCIÓN: ALARMAS ACTIVAS -->
+    <section class="alarm-block">
+        <div class="alarm-block-header">
+            <h2>Alarmas Activas</h2>
+            <span class="alarm-pill-badge @(ActiveAlarms.Count > 0 ? "active" : "empty")">
+                @(ActiveAlarms.Count > 0 ? $"{ActiveAlarms.Count} activa{(ActiveAlarms.Count > 1 ? "s" : "")}" : "0 activas")
+            </span>
+        </div>
 
-    <section class="panel-section alarm-summary">
-        <h2>Alarmas activas</h2>
-        <strong class="alarm-count">@ActiveAlarms.Count</strong>
+        @if (ActiveAlarms.Count == 0)
+        {
+            <div class="empty-status-panel">
+                <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+                <div class="empty-content">
+                    <strong class="empty-title">Sin alarmas activas en planta</strong>
+                    <span class="empty-desc">Todos los parámetros se encuentran operando dentro de límites normales.</span>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Vista de tarjetas móviles / lista limpia -->
+            <div class="alarm-cards-container">
+                @foreach (var alarm in ActiveAlarms)
+                {
+                    <article class="alarm-item-card is-active">
+                        <div class="item-head">
+                            <span class="item-tag">@DisplayName(alarm)</span>
+                            <span class="item-time">@alarm.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
+                        </div>
+                        <p class="item-message">@alarm.Message</p>
+                        <div class="item-foot">
+                            @if (alarm.ValueNumeric is not null)
+                            {
+                                <span class="item-val">Valor: <strong>@DisplayValue(alarm)</strong></span>
+                            }
+                            <span class="status-pill active">ACTIVA</span>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
     </section>
 
-    <table class="history-table alarm-table">
-        <thead>
-            <tr>
-                <th>Inicio</th>
-                <th>Variable</th>
-                <th>Mensaje</th>
-                <th>Valor</th>
-                <th>Severidad</th>
-            </tr>
-        </thead>
-        <tbody>
-            @if (ActiveAlarms.Count == 0)
-            {
-                <tr>
-                    <td colspan="5">No hay alarmas activas.</td>
-                </tr>
-            }
-            @foreach (var alarm in ActiveAlarms)
-            {
-                <tr>
-                    <td>@alarm.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                    <td>@DisplayName(alarm)</td>
-                    <td>@alarm.Message</td>
-                    <td>@DisplayValue(alarm)</td>
-                    <td><span class="severity @alarm.Severity">@alarm.Severity</span></td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <!-- SECCIÓN: HISTORIAL DE ALARMAS -->
+    <section class="alarm-block">
+        <div class="alarm-block-header">
+            <h2>Historial de Alarmas</h2>
+            <span class="history-count-text">@History.Count registros</span>
+        </div>
 
-    <section class="history-section">
-        <h2>Historico reciente</h2>
-        <table class="history-table alarm-table">
-            <thead>
-                <tr>
-                    <th>Inicio</th>
-                    <th>Fin</th>
-                    <th>Variable</th>
-                    <th>Mensaje</th>
-                    <th>Estado</th>
-                </tr>
-            </thead>
-            <tbody>
+        @if (History.Count == 0)
+        {
+            <div class="empty-status-panel">
+                <span class="empty-desc">No se registran eventos en el historial reciente.</span>
+            </div>
+        }
+        else
+        {
+            <!-- Tarjetas adaptativas responsive (óptimas en escritorio y celular) -->
+            <div class="alarm-cards-container">
                 @foreach (var alarm in History)
                 {
-                    <tr>
-                        <td>@alarm.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                        <td>@(alarm.ClearedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
-                        <td>@DisplayName(alarm)</td>
-                        <td>@alarm.Message</td>
-                        <td>@alarm.State</td>
-                    </tr>
+                    <article class="alarm-item-card @(alarm.State == "ACTIVA" ? "is-active" : "is-cleared")">
+                        <div class="item-head">
+                            <span class="item-tag">@DisplayName(alarm)</span>
+                            <span class="item-time">@alarm.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
+                        </div>
+                        <p class="item-message">@alarm.Message</p>
+                        <div class="item-foot">
+                            <span class="item-duration">
+                                @if (alarm.ClearedAt.HasValue)
+                                {
+                                    <span>Resuelta: @alarm.ClearedAt.Value.ToLocalTime().ToString("HH:mm:ss")</span>
+                                }
+                                else
+                                {
+                                    <span>En curso</span>
+                                }
+                            </span>
+                            <span class="status-pill @(alarm.State == "ACTIVA" ? "active" : "cleared")">
+                                @(alarm.State == "ACTIVA" ? "ACTIVA" : "RESUELTA")
+                            </span>
+                        </div>
+                    </article>
                 }
-            </tbody>
-        </table>
+            </div>
+        }
     </section>
 </section>
 
@@ -102,8 +126,29 @@
     private List<AlarmEvent> ActiveAlarms = [];
     private List<AlarmEvent> History = [];
     private string? ErrorMessage;
+    private PeriodicTimer? _refreshTimer;
+    private CancellationTokenSource? _cts;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _cts = new CancellationTokenSource();
+        _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        _ = RunLoopAsync(_refreshTimer, _cts.Token);
+    }
+
+    private async Task RunLoopAsync(PeriodicTimer timer, CancellationToken ct)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
 
     private async Task LoadAsync()
     {
@@ -115,40 +160,289 @@
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"No se pudieron cargar alarmas: {ex.Message}";
+            ErrorMessage = $"Error consultando alarmas: {ex.Message}";
         }
     }
 
-    private static string DisplayName(AlarmEvent alarm) => string.IsNullOrWhiteSpace(alarm.NombreVisible) ? alarm.TagId : alarm.NombreVisible;
+    private static string DisplayName(AlarmEvent alarm) =>
+        string.IsNullOrWhiteSpace(alarm.NombreVisible) ? alarm.TagId : alarm.NombreVisible;
 
     private static string DisplayValue(AlarmEvent alarm)
     {
-        if (alarm.ValueNumeric is not null) return alarm.ValueNumeric.Value.ToString("0.###");
-        if (alarm.ValueBool is not null) return alarm.ValueBool.Value ? "TRUE" : "FALSE";
+        if (alarm.ValueNumeric is not null) return alarm.ValueNumeric.Value.ToString("0.##");
+        if (alarm.ValueBool is not null) return alarm.ValueBool.Value ? "ON" : "OFF";
         return "-";
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _refreshTimer?.Dispose();
     }
 }
 
 <style>
-.alarm-guide-card {
+.alarm-page {
+    padding: 16px 20px 3rem;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+@@media (max-width: 640px) {
+    .alarm-page {
+        padding: 12px 10px 2.5rem;
+    }
+}
+
+.scada-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.scada-title-wrap h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #FFFFFF;
+    margin: 0;
+    letter-spacing: -0.02em;
+}
+
+@@media (max-width: 640px) {
+    .scada-title-wrap h1 {
+        font-size: 1.35rem;
+    }
+}
+
+.scada-subtitle {
+    margin: 0.25rem 0 0;
+    font-size: 0.85rem;
+    color: #8C93A4;
+    font-weight: 400;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.btn-pill-action {
+    background: var(--panel-2);
+    color: #94A3B8;
+    border: 1px solid var(--line);
+    border-radius: 9999px;
+    padding: 0.45rem 1.15rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.btn-pill-action:hover {
+    background: #3E4554;
+    color: #FFFFFF;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.alarm-block {
+    margin-bottom: 1.75rem;
+    width: 100%;
+}
+
+.alarm-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding: 0 0.25rem;
+}
+
+.alarm-block-header h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #FFFFFF;
+    margin: 0;
+}
+
+.alarm-pill-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.alarm-pill-badge.empty {
+    background: rgba(148, 163, 184, 0.1);
+    color: #94A3B8;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.alarm-pill-badge.active {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38BDF8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.history-count-text {
+    font-size: 0.8rem;
+    color: #8C93A4;
+}
+
+/* Panel de estado vacío minimalista */
+.empty-status-panel {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 1.1rem 1.35rem;
-    margin-bottom: 1.25rem;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
 }
 
-.alarm-guide-card h3 {
-    font-size: 0.95rem;
+.empty-icon {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.empty-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.empty-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #FFFFFF;
+}
+
+.empty-desc {
+    font-size: 0.82rem;
+    color: #8C93A4;
+}
+
+/* Contenedor de tarjetas de alarmas */
+.alarm-cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    width: 100%;
+}
+
+.alarm-item-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0.85rem 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    transition: border-color 0.2s ease;
+}
+
+@@media (max-width: 640px) {
+    .alarm-item-card {
+        padding: 0.75rem 0.85rem;
+    }
+}
+
+.alarm-item-card.is-active {
+    border-color: rgba(56, 189, 248, 0.4);
+    background: linear-gradient(90deg, rgba(56, 189, 248, 0.05) 0%, var(--panel) 100%);
+}
+
+.alarm-item-card.is-cleared {
+    opacity: 0.85;
+}
+
+.item-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.item-tag {
+    font-size: 0.9rem;
     font-weight: 600;
     color: #38BDF8;
-    margin: 0 0 6px;
 }
 
-.alarm-guide-card p {
-    font-size: 0.84rem;
+.item-time {
+    font-size: 0.78rem;
     color: #8C93A4;
-    margin: 0 0 4px;
-    line-height: 1.45;
+    font-variant-numeric: tabular-nums;
+}
+
+.item-message {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #E2E8F0;
+    line-height: 1.4;
+}
+
+.item-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.15rem;
+}
+
+.item-val, .item-duration {
+    font-size: 0.78rem;
+    color: #8C93A4;
+}
+
+.item-val strong {
+    color: #E2E8F0;
+}
+
+.status-pill {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2rem 0.55rem;
+    border-radius: 9999px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.status-pill.active {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38BDF8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.status-pill.cleared {
+    background: rgba(148, 163, 184, 0.1);
+    color: #94A3B8;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.alert-line {
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38BDF8;
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
 }
 </style>

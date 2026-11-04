@@ -52,7 +52,7 @@ public sealed class AiChatStateService
                 _messages.Add(new AiChatMessage
                 {
                     Role = "assistant",
-                    Content = "**Hola, soy tu Asistente IA para HIDROCONTROL PTAP.**\n\nSuperviso en tiempo real las variables operativas de la planta y te asisto en diagnóstico de calidad, dosificación química y control. ¿En qué puedo ayudarte hoy?",
+                    Content = "**Hola, soy MO — Master Operator (Operador Maestro) de HIDROCONTROL PTAP.**\n\nSuperviso continuamente las variables de calidad, hidráulica y dosificación de la planta. Aquí puedes consultarme diagnósticos, coordinar consignas de dosificación y resolver dudas operativas en tiempo real. ¿En qué puedo asistirte hoy?",
                     Timestamp = DateTime.UtcNow
                 });
                 SaveToDisk();

@@ -2,14 +2,17 @@
 @implements IAsyncDisposable
 @inject PTAPControl.Services.NodeRedApiClient Api
 
-<div class="global-alarm-banner @(IsActive ? "active" : "") @(IsCritical && !IsPlcInterrupted ? "critical" : "") @(IsPlcInterrupted ? "offline-mode" : "")">
-    <div class="alarm-beacon" aria-hidden="true"></div>
-    <div>
-        <strong>@AlarmBannerTitle</strong>
-        <span>@AlarmBannerText</span>
+@if (ActiveAlarmCount > 0)
+{
+    <div class="global-alarm-banner active @(HasCriticalAlarm ? "critical" : "")">
+        <div class="alarm-beacon" aria-hidden="true"></div>
+        <div>
+            <strong>@(HasCriticalAlarm ? "Alerta Crítica en Planta" : "Alertas de Proceso Activas")</strong>
+            <span>@ActiveAlarmCount activa(s). @LatestAlarmMessage</span>
+        </div>
+        <a href="alarmas">Ver alarmas</a>
     </div>
-    <a href="alarmas">Ver alarmas</a>
-</div>
+}
 
 @code {
     [Parameter]
@@ -21,29 +24,11 @@
     private PeriodicTimer? alarmTimer;
     private CancellationTokenSource? alarmCts;
 
-    private bool IsPlcInterrupted => PlcConnected == false;
-    private bool IsActive => IsPlcInterrupted || ActiveAlarmCount > 0;
-    private bool IsCritical => IsPlcInterrupted || HasCriticalAlarm;
-
-    private string AlarmBannerTitle =>
-        IsPlcInterrupted
-            ? "MO: OPERACIÓN LOCAL AUTÓNOMA EN PLANTA (OFFLINE)"
-            : ActiveAlarmCount == 0
-                ? "MO: PLANTA EN LÍNEA & SUPERVISIÓN ACTIVA"
-                : HasCriticalAlarm ? "MO: ALERTA CRÍTICA EN PLANTA" : "MO: ALERTAS DE PROCESO ACTIVAS";
-
-    private string AlarmBannerText =>
-        IsPlcInterrupted
-            ? "MO informa: La planta física se encuentra operando en modo local autónomo por desconexión de red. El agente local en servidor mantiene la supervisión de calidad y los enclavamientos de seguridad física en sitio. Al restablecerse el enlace, se sincronizará la bitácora histórica retenida."
-            : ActiveAlarmCount == 0
-                ? "Sistema operando en condiciones nominales estables. Supervisión y aprendizaje continuo activos."
-                : $"{ActiveAlarmCount} activa(s). {LatestAlarmMessage}";
-
     protected override async Task OnInitializedAsync()
     {
         alarmCts = new CancellationTokenSource();
         await RefreshAlarmsAsync();
-        alarmTimer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        alarmTimer = new PeriodicTimer(TimeSpan.FromSeconds(2));
         _ = AlarmLoopAsync(alarmCts.Token);
     }
 
@@ -77,7 +62,7 @@
         {
             ActiveAlarmCount = 0;
             HasCriticalAlarm = false;
-            LatestAlarmMessage = "No se pudo consultar Node-RED.";
+            LatestAlarmMessage = string.Empty;
         }
     }
 

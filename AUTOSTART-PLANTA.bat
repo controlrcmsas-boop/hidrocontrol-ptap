@@ -62,6 +62,9 @@ if "%MODO_RED%"=="ONLINE" (
 )
 
 timeout /t 2 /nobreak >nul
+echo [*] Verificando enlace de WhatsApp (Puerto 5089)...
+powershell.exe -NoProfile -Command "try { Start-Sleep -Seconds 2; $s = Invoke-RestMethod -Uri 'http://localhost:5089/status' -TimeoutSec 3; if (-not $s.connected) { Write-Host '  [!] WhatsApp requiere vinculacion. Abriendo codigo QR...' -ForegroundColor Yellow; Start-Process 'http://localhost:5089/qr' } else { Write-Host ('  [+] WhatsApp CONECTADO: ' + $s.user) -ForegroundColor Green } } catch {}"
+
 echo [*] Abriendo Consola Local de Operacion (http://localhost:1882/panel)...
 start msedge.exe --app="http://localhost:1882/panel" --window-size=1250,820 || start chrome.exe --app="http://localhost:1882/panel" --window-size=1250,820 || start http://localhost:1882/panel
 

@@ -311,6 +311,9 @@
 
             <!-- Sugerencias de Consultas Rápidas (Botones Píldora Elegantes) -->
             <div class="dominant-quick-prompts">
+                <button type="button" class="btn-pill-prompt primary" @onclick='() => SendQuickQueryAsync("Quiero dejar la bomba prendida sin los dosificadores para recircular agua en circuito cerrado")'>
+                    Recirculación (Solo Bomba)
+                </button>
                 <button type="button" class="btn-pill-prompt danger" @onclick='() => SendQuickQueryAsync("Desenergiza y apaga toda la planta de inmediato por seguridad")'>
                     Desenergizar Todo
                 </button>
@@ -662,6 +665,12 @@
             await Task.Delay(150); // Sensación fluida de proceso
             var (response, action) = TypeSafe.ProcessCopilotQuery(userText, Telemetry, Evaluation);
             ChatState.ReplaceThinkingWithResponse(thinkingMsg, response, action);
+
+            // Si la instrucción contiene una orden operativa directa, ejecutarla de inmediato en el PLC
+            if (action is not null && action.AutoExecute)
+            {
+                await ExecuteChatActionAsync(action);
+            }
         }
         catch (Exception ex)
         {
@@ -679,20 +688,51 @@
 
         try
         {
-            if (action.ActionType == "STOP_ALL")
+            if (action.Commands != null && action.Commands.Count > 0)
+            {
+                foreach (var cmd in action.Commands)
+                {
+                    await Api.SendCommandAsync(cmd.Target, cmd.Command, cts?.Token ?? CancellationToken.None);
+                    await Task.Delay(100);
+                }
+
+                if (action.ActionType == "RECIRCULATION")
+                {
+                    Api.Simulation.ModoRecirculacion = true;
+                }
+                else if (action.ActionType == "START_ALL" || action.ActionType == "START_DOSING")
+                {
+                    Api.Simulation.ModoRecirculacion = false;
+                }
+
+                TypeSafe.RecordAudit(new AiAuditEntry
+                {
+                    Chemical = action.EquipmentName,
+                    Action = action.ActionType,
+                    Operator = "Operador (Vía Asistente IA MO)",
+                    DoseMgL = 0,
+                    Details = $"Orden interactiva {action.ActionType} ejecutada para {action.EquipmentName}. Motivo: {action.Reason}",
+                    RawWaterConditions = "INSTRUCCIÓN VÍA ASISTENTE IA MO"
+                });
+
+                var detailList = string.Join("\n", action.Commands.Select(c => $"• **{c.EquipmentName}:** {(c.Command == "start" ? "ENCENDIDO 🟢" : "APAGADO 🛑")}"));
+                ChatState.AddAssistantMessage($"**[Orden Ejecutada en PLC]:** Se ha transmitido con éxito la configuración de **{action.EquipmentName}** al autómata Siemens S7-1200:\n\n{detailList}");
+            }
+            else if (action.ActionType == "STOP_ALL")
             {
                 await Api.SendCommandAsync("bomba_principal", "stop", cts?.Token ?? CancellationToken.None);
                 await Api.SendCommandAsync("dosificador_sulfato", "stop", cts?.Token ?? CancellationToken.None);
                 await Api.SendCommandAsync("dosificador_cloro", "stop", cts?.Token ?? CancellationToken.None);
+                Api.Simulation.ModoRecirculacion = false;
 
                 TypeSafe.RecordAudit(new AiAuditEntry
                 {
                     Chemical = "PLANTA GENERAL",
                     Action = "DESENERGIZACIÓN / STOP GENERAL",
-                    Operator = "Operador (Vía Asistente IA)",
+                    Operator = "Operador (Vía Asistente IA MO)",
                     DoseMgL = 0,
                     Details = $"Orden de desenergización ejecutada: Bomba B1 y dosificadores apagados. Motivo: {action.Reason}",
-                    RawWaterConditions = "INSTRUCCIÓN VÍA ASISTENTE IA"
+                    RawWaterConditions = "INSTRUCCIÓN VÍA ASISTENTE IA MO"
                 });
 
                 ChatState.AddAssistantMessage("**[Orden Ejecutada en PLC]:** Se han desenergizado y apagado con éxito la **Bomba Principal B1**, el **Dosificador de Sulfato B2** y el **Dosificador de Cloro B3**.");
@@ -706,10 +746,10 @@
                 {
                     Chemical = action.EquipmentName,
                     Action = action.ActionType == "START" ? "Arranque SCADA" : "Apagado SCADA",
-                    Operator = "Operador (Vía Asistente IA)",
+                    Operator = "Operador (Vía Asistente IA MO)",
                     DoseMgL = 0,
                     Details = $"Orden interactiva de {action.ActionType} ejecutada para {action.EquipmentName}. Motivo: {action.Reason}",
-                    RawWaterConditions = "INSTRUCCIÓN VÍA ASISTENTE IA"
+                    RawWaterConditions = "INSTRUCCIÓN VÍA ASISTENTE IA MO"
                 });
 
                 ChatState.AddAssistantMessage($"**[Orden Ejecutada en PLC]:** Se ha transmitido con éxito la orden de **{action.ActionType}** para **{action.EquipmentName}** al PLC Siemens S7-1200.");

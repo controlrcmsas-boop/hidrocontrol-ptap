@@ -605,145 +605,413 @@ public sealed class TypeSafeAiClientService
         var q = userMessage.ToLowerInvariant().Trim();
         var turbRaw = telemetry?.GetNumber("turbidez_agua_cruda") ?? 16.0;
         var turbTreated = telemetry?.GetNumber("turbidez_agua_tratada") ?? 0.85;
+        var phTreated = telemetry?.GetNumber("ph_agua_tratada") ?? telemetry?.GetNumber("ph_agua_cruda") ?? 7.2;
+        var condTreated = telemetry?.GetNumber("conductividad_agua_tratada") ?? telemetry?.GetNumber("conductividad_agua_cruda") ?? 210.0;
         var flow = telemetry?.GetNumber("caudal_bomba_principal") ?? 12.5;
         var pressure = telemetry?.GetNumber("presion_bomba_principal") ?? 2.3;
         var b1On = telemetry?.GetBool("bomba_principal_estado") == true;
+        var b2On = telemetry?.GetBool("dosificador_sulfato_estado") == true;
+        var b3On = telemetry?.GetBool("dosificador_cloro_estado") == true;
 
-        // Comandos de Parada / Desenergización
-        if (q.Contains("apaga") || q.Contains("desenergiz") || q.Contains("deten") || q.Contains("parada") || q.Contains("cortar") || q.Contains("stop"))
+        // Detección de intención imperativa directa (el operador solicita explícitamente ejecutar la acción)
+        bool isDirectOrder = q.Contains("queria que") || q.Contains("quería que") || q.Contains("quiero que") ||
+                             q.Contains("deja") || q.Contains("dejes") || q.Contains("dejar") ||
+                             q.Contains("pon ") || q.Contains("poner") || q.Contains("activa") ||
+                             q.Contains("inicia") || q.Contains("arranca") || q.Contains("apaga") ||
+                             q.Contains("deten") || q.Contains("detén") || q.Contains("parar") ||
+                             q.Contains("ejecuta") || q.Contains("haz ") || q.Contains("hacer") ||
+                             q.Contains("mantener") || q.Contains("mantén") || q.Contains("establece") ||
+                             q.Contains("por favor");
+
+        // 1. INTENCIÓN: MODO RECIRCULACIÓN / CIRCUITO CERRADO / SOLO BOMBA (SIN DOSIFICADORES)
+        bool isRecirculation = q.Contains("recircul") || q.Contains("circuito cerrado") ||
+                               (q.Contains("bomba") && (q.Contains("sin dosificad") || q.Contains("sin quimic") || q.Contains("sin sulfato") || q.Contains("sin cloro") || q.Contains("sin prender") || q.Contains("solo la bomba") || q.Contains("solo bomba") || q.Contains("bomba sola"))) ||
+                               ((q.Contains("deja") || q.Contains("pon") || q.Contains("mant")) && q.Contains("bomba") && (q.Contains("sin") || q.Contains("apaga")) && (q.Contains("dosificad") || q.Contains("quimic"))) ||
+                               q.Contains("lavado de filtro") || q.Contains("enjuague");
+
+        if (isRecirculation)
         {
-            if (q.Contains("sulfato") || q.Contains("coagulante") || q.Contains("b2"))
+            var action = new AiProposedAction
             {
-                return ("🛑 **Instrucción de Parada - Dosificador de Sulfato B2:**\n\n" +
-                        "Se detendrá la inyección de coagulante en el floculador FH-201.\n\n" +
-                        "[[ACTION:STOP|dosificador_sulfato|Dosificador Sulfato B2|Parada solicitada por el operador]]",
-                        new AiProposedAction
-                        {
-                            ActionType = "STOP",
-                            TargetEquipment = "dosificador_sulfato",
-                            EquipmentName = "Dosificador Sulfato B2",
-                            Reason = "Parada solicitada por el operador",
-                            Status = "Pendiente"
-                        });
-            }
-            if (q.Contains("cloro") || q.Contains("desinfect") || q.Contains("b3"))
-            {
-                return ("🛑 **Instrucción de Parada - Dosificador de Cloro B3:**\n\n" +
-                        "Se detendrá la inyección de hipoclorito de sodio en el tanque TK-501.\n\n" +
-                        "[[ACTION:STOP|dosificador_cloro|Dosificador Cloro B3|Parada solicitada por el operador]]",
-                        new AiProposedAction
-                        {
-                            ActionType = "STOP",
-                            TargetEquipment = "dosificador_cloro",
-                            EquipmentName = "Dosificador Cloro B3",
-                            Reason = "Parada solicitada por el operador",
-                            Status = "Pendiente"
-                        });
-            }
-            if (q.Contains("b1") || q.Contains("principal") || q.Contains("impulsion") || (q.Contains("bomba") && !q.Contains("toda") && !q.Contains("planta")))
-            {
-                return ("🛑 **Instrucción de Parada - Bomba Principal B1:**\n\n" +
-                        "Se procederá a apagar la impulsión hacia el filtro FC-401 para evitar sobrepresión o ingreso de agua sin tratar.\n\n" +
-                        "[[ACTION:STOP|bomba_principal|Bomba Principal B1|Parada solicitada por el operador]]",
-                        new AiProposedAction
-                        {
-                            ActionType = "STOP",
-                            TargetEquipment = "bomba_principal",
-                            EquipmentName = "Bomba Principal B1",
-                            Reason = "Parada solicitada por el operador",
-                            Status = "Pendiente"
-                        });
-            }
-            
-            return ("🚨 **Instrucción de Parada de Seguridad y Desenergización General:**\n\n" +
-                   "Se ha preparado la orden para desenergizar y detener simultáneamente la **Bomba Principal B1**, el **Dosificador de Sulfato B2** y el **Dosificador de Cloro B3** en el PLC Siemens S7-1200.\n\n" +
-                   "[[ACTION:STOP_ALL|Parada de seguridad y desenergización solicitada por el operador]]",
-                   new AiProposedAction
-                   {
-                       ActionType = "STOP_ALL",
-                       TargetEquipment = "ALL",
-                       EquipmentName = "Toda la Planta (B1, B2 y B3)",
-                       Reason = "Parada de seguridad y desenergización general solicitada por el operador",
-                       Status = "Pendiente"
-                   });
+                ActionType = "RECIRCULATION",
+                TargetEquipment = "recirculacion",
+                EquipmentName = "Modo Recirculación en Circuito Cerrado",
+                Reason = "Recirculación de caudal en circuito cerrado sin inyección química de coagulante ni cloro",
+                Status = "Pendiente",
+                AutoExecute = isDirectOrder,
+                Commands = new List<AiDeviceCommand>
+                {
+                    new() { Target = "bomba_principal", Command = "start", EquipmentName = "Bomba Principal B1" },
+                    new() { Target = "dosificador_sulfato", Command = "stop", EquipmentName = "Dosificador Sulfato B2" },
+                    new() { Target = "dosificador_cloro", Command = "stop", EquipmentName = "Dosificador Cloro B3" }
+                }
+            };
+
+            var text = "🔄 **Modo Operativo: Recirculación en Circuito Cerrado**\n\n" +
+                       "Entendido perfectamente. Para operar en circuito cerrado sin consumo ni sobredotación química:\n" +
+                       "• **Bomba Principal B1:** ENCENDIDA (impulsa la recirculación continua del fluido).\n" +
+                       "• **Dosificador Sulfato B2:** APAGADO (sin inyección de coagulante).\n" +
+                       "• **Dosificador Cloro B3:** APAGADO (sin inyección de desinfectante).\n" +
+                       "• **Dosificación Automática:** INHIBIDA (se bloquea la auto-activación química para proteger la recirculación).\n\n" +
+                       (isDirectOrder 
+                           ? "⚡ *Transmitiendo orden de configuración directamente al autómata Siemens S7-1200...*" 
+                           : "Presiona el botón inferior para confirmar y transmitir al PLC.");
+
+            return (text, action);
         }
 
-        // Comandos de Encendido / Arranque
-        if (q.Contains("enciend") || q.Contains("prend") || q.Contains("arranc") || q.Contains("inicia") || q.Contains("activa") || q.Contains("start"))
+        // 2. INTENCIÓN: PARADA TOTAL / DESENERGIZACIÓN GENERAL
+        bool isStopAll = (q.Contains("apaga") || q.Contains("deten") || q.Contains("parar") || q.Contains("parada") || q.Contains("desenergiz") || q.Contains("stop") || q.Contains("corta")) &&
+                         (q.Contains("todo") || q.Contains("planta") || q.Contains("general") || q.Contains("completa") || q.Contains("sistema") || q.Contains("emergencia"));
+
+        if (isStopAll)
         {
-            if (q.Contains("sulfato") || q.Contains("coagulante") || q.Contains("b2"))
+            var action = new AiProposedAction
             {
-                return ("🟢 **Instrucción de Arranque - Dosificador de Sulfato B2:**\n\n" +
-                        "Se activará la dosificación de sulfato de aluminio en el floculador FH-201 con la frecuencia configurada.\n\n" +
-                        "[[ACTION:START|dosificador_sulfato|Dosificador Sulfato B2|Arranque solicitado por el operador]]",
-                        new AiProposedAction
-                        {
-                            ActionType = "START",
-                            TargetEquipment = "dosificador_sulfato",
-                            EquipmentName = "Dosificador Sulfato B2",
-                            Reason = "Arranque solicitado por el operador",
-                            Status = "Pendiente"
-                        });
+                ActionType = "STOP_ALL",
+                TargetEquipment = "ALL",
+                EquipmentName = "Toda la Planta (B1, B2 y B3)",
+                Reason = "Parada de seguridad y desenergización general solicitada por el operador",
+                Status = "Pendiente",
+                AutoExecute = isDirectOrder,
+                Commands = new List<AiDeviceCommand>
+                {
+                    new() { Target = "bomba_principal", Command = "stop", EquipmentName = "Bomba Principal B1" },
+                    new() { Target = "dosificador_sulfato", Command = "stop", EquipmentName = "Dosificador Sulfato B2" },
+                    new() { Target = "dosificador_cloro", Command = "stop", EquipmentName = "Dosificador Cloro B3" }
+                }
+            };
+
+            var text = "🛑 **Instrucción de Parada General y Desenergización:**\n\n" +
+                       "Se procederá a desenergizar y detener simultáneamente todos los actuadores:\n" +
+                       "• **Bomba Principal B1:** APAGADA\n" +
+                       "• **Dosificador Sulfato B2:** APAGADO\n" +
+                       "• **Dosificador Cloro B3:** APAGADO\n\n" +
+                       (isDirectOrder 
+                           ? "⚡ *Transmitiendo orden de parada de emergencia al PLC Siemens S7-1200...*" 
+                           : "Presiona para confirmar la desenergización total.");
+
+            return (text, action);
+        }
+
+        // 3. INTENCIÓN: POTABILIZACIÓN COMPLETA / ENCENDER TODO
+        bool isStartAll = (q.Contains("prende") || q.Contains("enciende") || q.Contains("arranca") || q.Contains("inicia") || q.Contains("activa")) &&
+                          (q.Contains("todo") || q.Contains("planta") || q.Contains("potabiliz") || q.Contains("tratamiento") || q.Contains("completo") || q.Contains("completa"));
+
+        if (isStartAll)
+        {
+            var action = new AiProposedAction
+            {
+                ActionType = "START_ALL",
+                TargetEquipment = "ALL",
+                EquipmentName = "Potabilización Completa (B1, B2 y B3)",
+                Reason = "Arranque integral de impulsión y dosificación química",
+                Status = "Pendiente",
+                AutoExecute = isDirectOrder,
+                Commands = new List<AiDeviceCommand>
+                {
+                    new() { Target = "bomba_principal", Command = "start", EquipmentName = "Bomba Principal B1" },
+                    new() { Target = "dosificador_sulfato", Command = "start", EquipmentName = "Dosificador Sulfato B2" },
+                    new() { Target = "dosificador_cloro", Command = "start", EquipmentName = "Dosificador Cloro B3" }
+                }
+            };
+
+            var text = "🟢 **Instrucción de Potabilización Completa:**\n\n" +
+                       "Se iniciará el tren completo de tratamiento de agua:\n" +
+                       "• **Bomba Principal B1:** ENCENDIDA (impulsión hacia sedimentador y filtro).\n" +
+                       "• **Dosificador Sulfato B2:** ENCENDIDO (coagulación de sólidos en floculador FH-201).\n" +
+                       "• **Dosificador Cloro B3:** ENCENDIDO (desinfección en tanque TK-501).\n\n" +
+                       (isDirectOrder 
+                           ? "⚡ *Transmitiendo arranque integral al PLC Siemens S7-1200...*" 
+                           : "Presiona para confirmar el arranque de potabilización.");
+
+            return (text, action);
+        }
+
+        // 4. INTENCIÓN: APAGAR SOLO DOSIFICADORES QUÍMICOS (B2 Y B3)
+        bool isStopDosing = (q.Contains("apaga") || q.Contains("deten") || q.Contains("pausa") || q.Contains("corta")) &&
+                            (q.Contains("dosificad") || q.Contains("quimic")) && !q.Contains("bomba");
+
+        if (isStopDosing)
+        {
+            var action = new AiProposedAction
+            {
+                ActionType = "STOP_DOSING",
+                TargetEquipment = "dosificadores",
+                EquipmentName = "Dosificadores Químicos (B2 y B3)",
+                Reason = "Detención de inyección de coagulante y cloro por orden del operador",
+                Status = "Pendiente",
+                AutoExecute = isDirectOrder,
+                Commands = new List<AiDeviceCommand>
+                {
+                    new() { Target = "dosificador_sulfato", Command = "stop", EquipmentName = "Dosificador Sulfato B2" },
+                    new() { Target = "dosificador_cloro", Command = "stop", EquipmentName = "Dosificador Cloro B3" }
+                }
+            };
+
+            var text = "🛑 **Instrucción de Detención de Químicos:**\n\n" +
+                       "Se procederá a apagar los dosificadores químicos manteniendo la bomba en su estado:\n" +
+                       "• **Dosificador Sulfato B2:** APAGADO\n" +
+                       "• **Dosificador Cloro B3:** APAGADO\n\n" +
+                       (isDirectOrder ? "⚡ *Aplicando detención en el autómata...*" : "Presiona para confirmar.");
+
+            return (text, action);
+        }
+
+        // 5. INTENCIÓN: ENCENDER SOLO DOSIFICADORES QUÍMICOS (B2 Y B3)
+        bool isStartDosing = (q.Contains("prende") || q.Contains("enciende") || q.Contains("inicia") || q.Contains("activa")) &&
+                             (q.Contains("dosificad") || q.Contains("quimic")) && !q.Contains("bomba");
+
+        if (isStartDosing)
+        {
+            if (!b1On)
+            {
+                return ("⚠️ **Enclavamiento de Seguridad Física Activo:**\n\n" +
+                        "No es posible encender los dosificadores químicos B2 y B3 mientras la **Bomba Principal B1 esté apagada**.\n" +
+                        "Esta protección evita la sobreconcentración cáustica y sedimentación química en tuberías sin flujo.\n" +
+                        "Enciende primero la Bomba B1 o solicita 'Potabilización Completa'.", null);
             }
-            if (q.Contains("cloro") || q.Contains("desinfect") || q.Contains("b3"))
+
+            var action = new AiProposedAction
             {
-                return ("🟢 **Instrucción de Arranque - Dosificador de Cloro B3:**\n\n" +
-                        "Se activará la dosificación de hipoclorito de sodio en el tanque TK-501 para asegurar desinfección.\n\n" +
-                        "[[ACTION:START|dosificador_cloro|Dosificador Cloro B3|Arranque solicitado por el operador]]",
-                        new AiProposedAction
-                        {
-                            ActionType = "START",
-                            TargetEquipment = "dosificador_cloro",
-                            EquipmentName = "Dosificador Cloro B3",
-                            Reason = "Arranque solicitado por el operador",
-                            Status = "Pendiente"
-                        });
+                ActionType = "START_DOSING",
+                TargetEquipment = "dosificadores",
+                EquipmentName = "Dosificadores Químicos (B2 y B3)",
+                Reason = "Activación de dosificación química por orden del operador",
+                Status = "Pendiente",
+                AutoExecute = isDirectOrder,
+                Commands = new List<AiDeviceCommand>
+                {
+                    new() { Target = "dosificador_sulfato", Command = "start", EquipmentName = "Dosificador Sulfato B2" },
+                    new() { Target = "dosificador_cloro", Command = "start", EquipmentName = "Dosificador Cloro B3" }
+                }
+            };
+
+            var text = "🟢 **Instrucción de Activación de Dosificación:**\n\n" +
+                       "Con la Bomba B1 en marcha, se activarán ambos dosificadores:\n" +
+                       "• **Dosificador Sulfato B2:** ENCENDIDO\n" +
+                       "• **Dosificador Cloro B3:** ENCENDIDO\n\n" +
+                       (isDirectOrder ? "⚡ *Transmitiendo al PLC...*" : "Presiona para confirmar.");
+
+            return (text, action);
+        }
+
+        // 6. ACTUADOR INDIVIDUAL: BOMBA PRINCIPAL B1
+        if (q.Contains("bomba") || q.Contains("b1") || q.Contains("impulsion") || q.Contains("bombeo"))
+        {
+            if (q.Contains("apaga") || q.Contains("deten") || q.Contains("stop") || q.Contains("cortar") || q.Contains("parar"))
+            {
+                var action = new AiProposedAction
+                {
+                    ActionType = "STOP",
+                    TargetEquipment = "bomba_principal",
+                    EquipmentName = "Bomba Principal B1",
+                    Reason = "Parada de bomba solicitada por el operador (Interlock: dosificadores también se apagan)",
+                    Status = "Pendiente",
+                    AutoExecute = isDirectOrder,
+                    Commands = new List<AiDeviceCommand>
+                    {
+                        new() { Target = "bomba_principal", Command = "stop", EquipmentName = "Bomba Principal B1" },
+                        new() { Target = "dosificador_sulfato", Command = "stop", EquipmentName = "Dosificador Sulfato B2" },
+                        new() { Target = "dosificador_cloro", Command = "stop", EquipmentName = "Dosificador Cloro B3" }
+                    }
+                };
+
+                var text = "🛑 **Instrucción de Parada - Bomba Principal B1:**\n\n" +
+                           "Se apagará la impulsión hacia el filtro FC-401.\n" +
+                           "*(Por seguridad física de proceso, los dosificadores B2 y B3 también se apagan automáticamente al detener la bomba).*\n\n" +
+                           (isDirectOrder ? "⚡ *Transmitiendo orden de parada al PLC Siemens...*" : "Presiona para confirmar.");
+
+                return (text, action);
             }
-            if (q.Contains("b1") || q.Contains("principal") || q.Contains("bomba") || q.Contains("impulsion"))
+
+            if (q.Contains("prende") || q.Contains("enciende") || q.Contains("arranca") || q.Contains("inicia") || q.Contains("activa") || q.Contains("start"))
             {
-                return ("🟢 **Instrucción de Arranque - Bomba Principal B1:**\n\n" +
-                        "Se iniciará el bombeo hacia el sedimentador SC-301 y el filtro FC-401.\n\n" +
-                        "[[ACTION:START|bomba_principal|Bomba Principal B1|Arranque solicitado por el operador]]",
-                        new AiProposedAction
-                        {
-                            ActionType = "START",
-                            TargetEquipment = "bomba_principal",
-                            EquipmentName = "Bomba Principal B1",
-                            Reason = "Arranque solicitado por el operador",
-                            Status = "Pendiente"
-                        });
+                var action = new AiProposedAction
+                {
+                    ActionType = "START",
+                    TargetEquipment = "bomba_principal",
+                    EquipmentName = "Bomba Principal B1",
+                    Reason = "Arranque de bomba principal solicitado por el operador",
+                    Status = "Pendiente",
+                    AutoExecute = isDirectOrder,
+                    Commands = new List<AiDeviceCommand>
+                    {
+                        new() { Target = "bomba_principal", Command = "start", EquipmentName = "Bomba Principal B1" }
+                    }
+                };
+
+                var text = "🟢 **Instrucción de Arranque - Bomba Principal B1:**\n\n" +
+                           "Se iniciará la impulsión de agua hacia el floculador FH-201 y sedimentador SC-301.\n\n" +
+                           (isDirectOrder ? "⚡ *Transmitiendo orden de arranque al PLC Siemens...*" : "Presiona para confirmar.");
+
+                return (text, action);
             }
         }
 
-        if (q.Contains("calidad") || q.Contains("turbid") || q.Contains("diagnost"))
+        // 7. ACTUADOR INDIVIDUAL: DOSIFICADOR DE SULFATO B2
+        if (q.Contains("sulfato") || q.Contains("coagulante") || q.Contains("b2"))
+        {
+            if (q.Contains("apaga") || q.Contains("deten") || q.Contains("stop") || q.Contains("pausa"))
+            {
+                var action = new AiProposedAction
+                {
+                    ActionType = "STOP",
+                    TargetEquipment = "dosificador_sulfato",
+                    EquipmentName = "Dosificador Sulfato B2",
+                    Reason = "Parada de dosificación de sulfato solicitada por el operador",
+                    Status = "Pendiente",
+                    AutoExecute = isDirectOrder,
+                    Commands = new List<AiDeviceCommand>
+                    {
+                        new() { Target = "dosificador_sulfato", Command = "stop", EquipmentName = "Dosificador Sulfato B2" }
+                    }
+                };
+
+                var text = "🛑 **Instrucción de Parada - Dosificador de Sulfato B2:**\n\n" +
+                           "Se detendrá la inyección de coagulante en el floculador FH-201.\n\n" +
+                           (isDirectOrder ? "⚡ *Transmitiendo al PLC...*" : "Presiona para confirmar.");
+
+                return (text, action);
+            }
+
+            if (q.Contains("prende") || q.Contains("enciende") || q.Contains("inicia") || q.Contains("activa") || q.Contains("dosifica") || q.Contains("start"))
+            {
+                if (!b1On)
+                {
+                    return ("⚠️ **Enclavamiento Activo:** No es posible activar el Dosificador de Sulfato B2 si la **Bomba B1 está apagada**.", null);
+                }
+
+                var action = new AiProposedAction
+                {
+                    ActionType = "START",
+                    TargetEquipment = "dosificador_sulfato",
+                    EquipmentName = "Dosificador Sulfato B2",
+                    Reason = "Arranque de dosificación de sulfato solicitado por el operador",
+                    Status = "Pendiente",
+                    AutoExecute = isDirectOrder,
+                    Commands = new List<AiDeviceCommand>
+                    {
+                        new() { Target = "dosificador_sulfato", Command = "start", EquipmentName = "Dosificador Sulfato B2" }
+                    }
+                };
+
+                var text = "🟢 **Instrucción de Arranque - Dosificador de Sulfato B2:**\n\n" +
+                           "Se activará la inyección de coagulante en el floculador FH-201.\n\n" +
+                           (isDirectOrder ? "⚡ *Transmitiendo al PLC...*" : "Presiona para confirmar.");
+
+                return (text, action);
+            }
+        }
+
+        // 8. ACTUADOR INDIVIDUAL: DOSIFICADOR DE CLORO B3
+        if (q.Contains("cloro") || q.Contains("desinfect") || q.Contains("b3") || q.Contains("hipoclorito"))
+        {
+            if (q.Contains("apaga") || q.Contains("deten") || q.Contains("stop") || q.Contains("pausa"))
+            {
+                var action = new AiProposedAction
+                {
+                    ActionType = "STOP",
+                    TargetEquipment = "dosificador_cloro",
+                    EquipmentName = "Dosificador Cloro B3",
+                    Reason = "Parada de dosificación de cloro solicitada por el operador",
+                    Status = "Pendiente",
+                    AutoExecute = isDirectOrder,
+                    Commands = new List<AiDeviceCommand>
+                    {
+                        new() { Target = "dosificador_cloro", Command = "stop", EquipmentName = "Dosificador Cloro B3" }
+                    }
+                };
+
+                var text = "🛑 **Instrucción de Parada - Dosificador de Cloro B3:**\n\n" +
+                           "Se detendrá la inyección de cloro en el tanque TK-501.\n\n" +
+                           (isDirectOrder ? "⚡ *Transmitiendo al PLC...*" : "Presiona para confirmar.");
+
+                return (text, action);
+            }
+
+            if (q.Contains("prende") || q.Contains("enciende") || q.Contains("inicia") || q.Contains("activa") || q.Contains("dosifica") || q.Contains("start"))
+            {
+                if (!b1On)
+                {
+                    return ("⚠️ **Enclavamiento Activo:** No es posible activar el Dosificador de Cloro B3 si la **Bomba B1 está apagada**.", null);
+                }
+
+                var action = new AiProposedAction
+                {
+                    ActionType = "START",
+                    TargetEquipment = "dosificador_cloro",
+                    EquipmentName = "Dosificador Cloro B3",
+                    Reason = "Arranque de dosificación de cloro solicitado por el operador",
+                    Status = "Pendiente",
+                    AutoExecute = isDirectOrder,
+                    Commands = new List<AiDeviceCommand>
+                    {
+                        new() { Target = "dosificador_cloro", Command = "start", EquipmentName = "Dosificador Cloro B3" }
+                    }
+                };
+
+                var text = "🟢 **Instrucción de Arranque - Dosificador de Cloro B3:**\n\n" +
+                           "Se activará la inyección de cloro desinfectante en el tanque TK-501.\n\n" +
+                           (isDirectOrder ? "⚡ *Transmitiendo al PLC...*" : "Presiona para confirmar.");
+
+                return (text, action);
+            }
+        }
+
+        // 9. CONSULTA: ESTADO ACTUAL DE EQUIPOS Y BOMBAS
+        if (q.Contains("cuales") || q.Contains("que bombas") || q.Contains("cuales bombas") || q.Contains("que equipos") ||
+            q.Contains("estan prend") || q.Contains("estan encend") || q.Contains("estado de equipos") || q.Contains("estado de las bombas") ||
+            q.Contains("equipos encendidos"))
+        {
+            var b1Str = b1On ? "ENCENDIDA 🟢" : "APAGADA 🛑";
+            var b2Str = b2On ? "DOSIFICANDO 🟢" : "APAGADO 🛑";
+            var b3Str = b3On ? "DOSIFICANDO 🟢" : "APAGADO 🛑";
+
+            return ($"📋 **Estado Actual de Equipos en Planta:**\n\n" +
+                    $"• **Bomba Principal B1:** {b1Str} (Caudal: **{flow:F1} L/min**, Presión: **{pressure:F1} bar**)\n" +
+                    $"• **Dosificador Sulfato B2:** {b2Str} (Floculador FH-201)\n" +
+                    $"• **Dosificador Cloro B3:** {b3Str} (Tanque TK-501)\n\n" +
+                    $"*Modo Remoto:* **{(telemetry?.GetBool("modo_remoto_habilitado") == true ? "HABILITADO" : "LOCAL")}** | *Enlace PLC:* **{(telemetry?.PlcConnected == true ? "EN LÍNEA" : "OFFLINE")}**.", null);
+        }
+
+        // 10. CONSULTA: CALIDAD, TURBIDEZ, PH, CONDUCTIVIDAD
+        if (q.Contains("calidad") || q.Contains("turbid") || q.Contains("diagnost") || q.Contains("ph") || q.Contains("conductividad"))
         {
             var conf = currentEval?.ConfidenceLevel ?? "Alta";
-            var confScore = currentEval?.ConfidenceScore ?? 0.88;
+            var confScore = currentEval?.ConfidenceScore ?? 0.90;
             var removal = turbRaw > 0 ? ((turbRaw - turbTreated) / turbRaw * 100.0) : 0.0;
 
-            return ($"**Diagnóstico de Calidad:**\n\n" +
-                   $"• **Estado Clasificado:** **{currentEval?.OverallStatus ?? "Optimo"}** (Confianza: **{conf} [{confScore:P0}]**)\n" +
-                   $"• **Agua Cruda (Entrada):** Turbidez en **{turbRaw:F1} NTU**.\n" +
-                   $"• **Agua Tratada (Salida):** Turbidez en **{turbTreated:F2} NTU** (Límite Resolución 2115: < 2.0 NTU).\n" +
-                   $"• **Eficiencia de Remoción:** **{removal:F1}%**.\n\n" +
-                   $"El sedimentador SC-301 y el filtro FC-401 operan dentro de los parámetros esperados.", null);
+            return ($"🧪 **Diagnóstico de Calidad del Agua:**\n\n" +
+                    $"• **Estado Operativo:** **{currentEval?.OverallStatus ?? "Operativo"}** (Confianza MO: **{conf} [{confScore:P0}]**)\n" +
+                    $"• **pH Agua:** **{phTreated:F2} pH** (Norma Res. 2115: 6.5 — 8.5 pH)\n" +
+                    $"• **Turbidez Tratada:** **{turbTreated:F2} NTU** (Límite normativo: < 2.0 NTU)\n" +
+                    $"• **Turbidez Cruda:** **{turbRaw:F1} NTU** | **Eficiencia Remoción:** **{removal:F1}%**\n" +
+                    $"• **Conductividad:** **{condTreated:F0} µS/cm** (Límite: < 200 µS/cm)\n\n" +
+                    $"Sedimentador lamelar SC-301 y filtro de lecho mixto FC-401 en supervisión continua.", null);
         }
 
+        // 11. CONSULTA: CONSECUENCIAS PH BAJO O ACIDO
         if (q.Contains("ph") && (q.Contains("bajo") || q.Contains("acido") || q.Contains("consecuencia")))
         {
             return ("**Evaluación Técnica de pH Bajo en HIDROCONTROL PTAP:**\n\n" +
-                   "1. **Corrosión:** El agua ácida (pH < 6.5) corroe las tuberías metálicas y disuelve el calcio del hormigón de los tanques.\n" +
-                   "2. **Floculación Ineficiente:** El Sulfato de Aluminio requiere un pH óptimo entre 6.5 y 7.8 para formar hidróxido de aluminio Al(OH)3 insoluble.\n" +
-                   "3. **Inestabilidad del Cloro:** El ácido hipocloroso se volatiliza más rápido, perdiendo residual libre en red.\n" +
-                   "4. **Recomendación:** Dosificar alcalinizante para restablecer pH entre 7.0 y 7.5.", null);
+                   "1. **Corrosión:** El agua ácida (pH < 6.5) corroe tuberías metálicas y ataca accesorios.\n" +
+                   "2. **Floculación Ineficiente:** El Sulfato de Aluminio requiere pH entre 6.5 y 7.8 para formar floc pesados Al(OH)3.\n" +
+                   "3. **Inestabilidad del Cloro:** El ácido hipocloroso se volatiliza con mayor rapidez.\n" +
+                   "4. **Recomendación:** Ajustar dosificación o dosificar alcalinizante.", null);
         }
 
-        return ($"**Asistente Inteligente PTAP:**\n\n" +
-               $"La planta reporta Bomba B1 **{(b1On ? "ENCENDIDA" : "APAGADA")}**, caudal de **{flow:F1} L/min** y presión de **{pressure:F1} bar**.\n" +
-               $"Agua Cruda: **{turbRaw:F1} NTU** | Agua Tratada: **{turbTreated:F2} NTU**.\n" +
-               $"Confianza de Diagnóstico: **{currentEval?.ConfidenceLevel ?? "Alta"} ({currentEval?.ConfidenceScore ?? 0.90:P0})**.\n\n" +
-               $"Puedes solicitar diagnósticos o ejecutar órdenes de control (ej: 'Apagar bomba B1', 'Desenergizar toda la planta', 'Verificar calidad').", null);
+        // 12. RESPUESTA ASISTENTE POR DEFECTO
+        return ($"🤖 **Master Operator (MO) — Asistente de Supervisión:**\n\n" +
+               $"La planta reporta Bomba B1 **{(b1On ? "ENCENDIDA" : "APAGADA")}**, Caudal: **{flow:F1} L/min**, Presión: **{pressure:F1} bar**.\n" +
+               $"Turbidez: **{turbTreated:F2} NTU** | pH: **{phTreated:F2} pH** | Conductividad: **{condTreated:F0} µS/cm**.\n\n" +
+               $"Puedes ordenarme instrucciones directas:\n" +
+               $"• *'Deja la bomba prendida sin prender los dosificadores para recircular agua'*.\n" +
+               $"• *'Apagar toda la planta por seguridad'*.\n" +
+               $"• *'Iniciar potabilización completa'*.\n" +
+               $"• *'¿Cuáles bombas están encendidas?'*.", null);
     }
+
 
     /// <summary>
     /// Simula un escenario operativo crítico de baja confianza (<55%) para validación

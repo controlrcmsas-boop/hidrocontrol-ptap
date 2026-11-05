@@ -2,13 +2,22 @@ using System.Text.Json.Serialization;
 
 namespace PTAPControl.Models;
 
+public sealed class AiDeviceCommand
+{
+    public string Target { get; set; } = string.Empty;
+    public string Command { get; set; } = string.Empty; // "start" o "stop"
+    public string EquipmentName { get; set; } = string.Empty;
+}
+
 public sealed class AiProposedAction
 {
-    public string ActionType { get; set; } = string.Empty; // "STOP_ALL", "STOP", "START"
-    public string TargetEquipment { get; set; } = string.Empty; // "bomba_principal", "dosificador_sulfato", "dosificador_cloro", "ALL"
+    public string ActionType { get; set; } = string.Empty; // "RECIRCULATION", "START", "STOP", "STOP_ALL", "START_ALL", "STOP_DOSING", "START_DOSING", "CUSTOM"
+    public string TargetEquipment { get; set; } = string.Empty; // "bomba_principal", "dosificador_sulfato", "dosificador_cloro", "ALL", "recirculacion"
     public string EquipmentName { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
     public string Status { get; set; } = "Pendiente"; // "Pendiente", "Ejecutado", "Cancelado"
+    public bool AutoExecute { get; set; } = false;
+    public List<AiDeviceCommand> Commands { get; set; } = [];
 }
 
 public sealed class AiChatMessage

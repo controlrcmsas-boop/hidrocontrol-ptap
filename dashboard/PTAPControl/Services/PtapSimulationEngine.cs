@@ -22,6 +22,7 @@ public sealed class PtapSimulationEngine
     public bool PlcEnFalla { get; set; } = false;
     public bool ComandoRechazado { get; set; } = false;
     public bool UltimoComandoAceptado { get; set; } = true;
+    public bool ModoRecirculacion { get; set; } = false;
 
     public int WatchdogPlc { get; private set; } = 1000;
     public int CommandSequence { get; private set; } = 1;
@@ -308,18 +309,31 @@ public sealed class PtapSimulationEngine
             else if (target.Equals("dosificador_sulfato", StringComparison.OrdinalIgnoreCase))
             {
                 DosificadorSulfatoEstado = isStart;
+                if (isStart) ModoRecirculacion = false;
             }
             else if (target.Equals("dosificador_cloro", StringComparison.OrdinalIgnoreCase))
             {
                 DosificadorCloroEstado = isStart;
+                if (isStart) ModoRecirculacion = false;
             }
             else if (target.Equals("sistema", StringComparison.OrdinalIgnoreCase) && command.Equals("reset_alarmas", StringComparison.OrdinalIgnoreCase))
             {
                 PlcEnFalla = false;
                 ComandoRechazado = false;
             }
+            else if (target.Equals("recirculacion", StringComparison.OrdinalIgnoreCase) || target.Equals("circuito_cerrado", StringComparison.OrdinalIgnoreCase))
+            {
+                ModoRecirculacion = isStart;
+                if (isStart)
+                {
+                    BombaPrincipalEstado = true;
+                    DosificadorSulfatoEstado = false;
+                    DosificadorCloroEstado = false;
+                }
+            }
             else if (target.Equals("ALL", StringComparison.OrdinalIgnoreCase) || target.Equals("planta", StringComparison.OrdinalIgnoreCase))
             {
+                ModoRecirculacion = false;
                 BombaPrincipalEstado = false;
                 DosificadorSulfatoEstado = false;
                 DosificadorCloroEstado = false;
@@ -381,7 +395,7 @@ public sealed class PtapSimulationEngine
             // Coordinación química inteligente en modo automático simulado
             if (CurrentMode == PtapDataSourceMode.SimulatedAuto)
             {
-                if (!BombaPrincipalEstado)
+                if (!BombaPrincipalEstado || ModoRecirculacion)
                 {
                     DosificadorSulfatoEstado = false;
                     DosificadorCloroEstado = false;
@@ -438,6 +452,7 @@ public sealed class PtapSimulationEngine
                 ["bomba_principal_estado"] = BombaPrincipalEstado,
                 ["dosificador_sulfato_estado"] = DosificadorSulfatoEstado,
                 ["dosificador_cloro_estado"] = DosificadorCloroEstado,
+                ["modo_recirculacion"] = ModoRecirculacion,
                 ["nivel_tanque_agua_cruda"] = NivelTanqueAguaCruda,
                 ["modo_remoto_habilitado"] = ModoRemotoHabilitado,
                 ["plc_en_falla"] = PlcEnFalla,

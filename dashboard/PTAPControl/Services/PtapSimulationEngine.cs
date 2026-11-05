@@ -60,7 +60,14 @@ public sealed class PtapSimulationEngine
     private readonly Timer? _backgroundTimer;
 
     
-    private static readonly string AlarmFilePath = Path.Combine(AppContext.BaseDirectory, "ptap-alarm-history.json");
+    private static string ResolveStoragePath(string filename)
+    {
+        var dataDir = Directory.Exists("/data") ? "/data" : AppContext.BaseDirectory;
+        return Path.Combine(dataDir, filename);
+    }
+
+    private static readonly string AlarmFilePath = ResolveStoragePath("ptap-alarm-history.json");
+    private static readonly string QualityHistoryFilePath = ResolveStoragePath("ptap-quality-history.json");
     private readonly List<AlarmEvent> _activeAlarms = [];
     private readonly List<AlarmEvent> _alarmHistory = [];
     private long _nextAlarmId = 1;
@@ -68,6 +75,7 @@ public sealed class PtapSimulationEngine
     public PtapSimulationEngine()
     {
         LoadAlarmsFromDisk();
+        LoadHistoryFromDisk();
 
         if (_alarmHistory.Count == 0)
         {
@@ -88,6 +96,56 @@ public sealed class PtapSimulationEngine
 
         // Muestreador continuo en segundo plano cada 2 segundos
         _backgroundTimer = new Timer(OnBackgroundTick, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    private void LoadHistoryFromDisk()
+    {
+        try
+        {
+            if (File.Exists(QualityHistoryFilePath))
+            {
+                var json = File.ReadAllText(QualityHistoryFilePath);
+                var loaded = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, List<QualityHistoryPoint>>>(json);
+                if (loaded != null && loaded.Count > 0)
+                {
+                    lock (_sync)
+                    {
+                        foreach (var kvp in loaded)
+                        {
+                            _historyStore[kvp.Key] = kvp.Value;
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+        catch { }
+
+        // Si no hay archivo previo guardado, inicializar curva base
+        InitializeFullHistory();
+    }
+
+    private DateTimeOffset _lastHistoryDiskSave = DateTimeOffset.MinValue;
+    private void SaveHistoryToDisk(bool force = false)
+    {
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (!force && (now - _lastHistoryDiskSave).TotalSeconds < 15) return;
+            _lastHistoryDiskSave = now;
+
+            Dictionary<string, List<QualityHistoryPoint>> snapshot;
+            lock (_sync)
+            {
+                snapshot = _historyStore.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value.TakeLast(360).ToList()
+                );
+            }
+            var json = System.Text.Json.JsonSerializer.Serialize(snapshot);
+            File.WriteAllText(QualityHistoryFilePath, json);
+        }
+        catch { }
     }
 
     private void LoadAlarmsFromDisk()
@@ -718,7 +776,25 @@ public sealed class PtapSimulationEngine
                     AddHistoryPointDirect("turbidez_agua_cruda", time, rec.TurbidezAguaCruda.Value, "NTU");
                 if (rec.ConductividadAguaCruda.HasValue)
                     AddHistoryPointDirect("conductividad_agua_cruda", time, rec.ConductividadAguaCruda.Value, "µS/cm");
+
+                var mockTel = new TelemetryResponse
+                {
+                    PlcConnected = rec.PlcConnected != 0,
+                    Timestamp = time.UtcDateTime,
+                    Values = new Dictionary<string, object?>
+                    {
+                        ["ph_agua_tratada"] = rec.PhAguaTratada,
+                        ["turbidez_agua_tratada"] = rec.TurbidezAguaTratada,
+                        ["conductividad_agua_tratada"] = rec.ConductividadAguaTratada,
+                        ["ph_agua_cruda"] = rec.PhAguaCruda,
+                        ["turbidez_agua_cruda"] = rec.TurbidezAguaCruda,
+                        ["conductividad_agua_cruda"] = rec.ConductividadAguaCruda
+                    }
+                };
+                EvaluateTelemetryAlarms(mockTel);
             }
+            SaveHistoryToDisk(force: true);
+            SaveAlarmsToDisk();
         }
     }
 
@@ -811,6 +887,7 @@ public sealed class PtapSimulationEngine
                     }
                 }
             }
+            SaveHistoryToDisk();
         }
     }
 

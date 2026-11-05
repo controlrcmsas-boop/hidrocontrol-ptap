@@ -397,10 +397,26 @@ async function flushPendingBuffer() {
     if (!state.cloudOnline) return;
 
     try {
-        const pending = db.prepare('SELECT * FROM telemetry_history WHERE sincronizado = 0 LIMIT 20').all();
-        if (pending.length > 0) {
-            const ids = pending.map(r => r.id).join(',');
-            db.exec(`UPDATE telemetry_history SET sincronizado = 1 WHERE id IN (${ids})`);
+        const pending = db.prepare('SELECT * FROM telemetry_history WHERE sincronizado = 0 LIMIT 50').all();
+        if (pending && pending.length > 0) {
+            const payload = JSON.stringify(pending);
+            const req = https.request('https://hidrocontrol.potenzia.app/api/telemetry/sync', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(payload)
+                },
+                timeout: 6000
+            }, (res) => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    const ids = pending.map(r => r.id).join(',');
+                    db.exec(`UPDATE telemetry_history SET sincronizado = 1 WHERE id IN (${ids})`);
+                }
+            });
+            req.on('error', () => {});
+            req.on('timeout', () => { req.destroy(); });
+            req.write(payload);
+            req.end();
         }
     } catch (e) {
         // Si hay fallo se mantienen en cola

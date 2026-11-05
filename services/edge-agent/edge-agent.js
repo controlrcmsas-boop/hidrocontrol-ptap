@@ -125,7 +125,7 @@ function scaleSensorValues(rawValues) {
 
     // FÓRMULA 1: Turbidez Invertida
     // Agua limpia entrega ~484 -> 0.5 a 0.8 NTU. Agua con tierra baja a ~332 -> ~304 NTU.
-    const turbidezReal = Math.max(0.5, Number(((485.0 - rawTurb) * 2.0).toFixed(1)));
+    const turbidezReal = Math.max(0.5, Number(((485.0 - rawTurb) * 0.2).toFixed(2)));
 
     // FÓRMULA 2: pH Calibrado con corrección de offset y ganancia
     // Base agua limpia: 6.64 -> calibrado a 7.00. Agua con limón: 4.75 -> calibrado a 3.50.

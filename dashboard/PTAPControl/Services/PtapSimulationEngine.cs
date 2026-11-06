@@ -806,8 +806,36 @@ public sealed class PtapSimulationEngine
     private double _lastRecordedSampleCondT = -999;
     private double _lastRecordedSampleCondC = -999;
 
+    public static void NormalizeTurbidityValues(TelemetryResponse? telemetry)
+    {
+        if (telemetry?.Values == null) return;
+        NormalizeSingleTurbKey(telemetry.Values, "turbidez_agua_cruda");
+        NormalizeSingleTurbKey(telemetry.Values, "turbidez_agua_tratada");
+    }
+
+    private static void NormalizeSingleTurbKey(Dictionary<string, object?> values, string key)
+    {
+        if (!values.TryGetValue(key, out var val) || val == null) return;
+        double d = 0;
+        if (val is double dv) d = dv;
+        else if (val is float fv) d = fv;
+        else if (val is decimal decv) d = (double)decv;
+        else if (val is int iv) d = iv;
+        else if (val is long lv) d = lv;
+        else if (val is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Number && je.TryGetDouble(out var jdv)) d = jdv;
+        else if (double.TryParse(val.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var pv)) d = pv;
+        else return;
+
+        // Corrección de coma corrida del sensor óptico (ej. 14.3 o 15.2 en lugar de 1.43 o 1.52, o 26.4 en lugar de 2.64)
+        if (d >= 5.0 && d <= 50.0)
+        {
+            values[key] = Math.Round(d / 10.0, 2);
+        }
+    }
+
     public void RecordTelemetrySample(TelemetryResponse telemetry)
     {
+        NormalizeTurbidityValues(telemetry);
         EvaluateTelemetryAlarms(telemetry);
         if (telemetry?.Values == null || !telemetry.PlcConnected) return;
 

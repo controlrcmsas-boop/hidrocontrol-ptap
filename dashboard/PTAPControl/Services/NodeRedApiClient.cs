@@ -68,6 +68,7 @@ public sealed class NodeRedApiClient(HttpClient http, PtapSimulationEngine simul
                 _lastPlcSuccess = telemetry.PlcConnected;
                 simulationEngine.SetConnectionAlarm(telemetry.PlcConnected);
 
+                PtapSimulationEngine.NormalizeTurbidityValues(telemetry);
                 simulationEngine.RecordTelemetrySample(telemetry);
 
                 // Evaluar alarmas de proceso activas (turbidez, pH, conductividad)
